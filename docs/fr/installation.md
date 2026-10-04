@@ -48,7 +48,7 @@ jevnav se branche sur le navigateur déjà ouvert, sans le relancer.
 
 Ce clic se refait après chaque redémarrage du navigateur. Tant que la case reste cochée, n'importe quel programme local peut piloter votre navigateur et lire vos sessions : décochez-la dès que vous n'utilisez plus jevnav.
 
-Pour Chrome à la place de Comet, ajoutez `JEVNAV_APP=Google Chrome` dans `.env`.
+Pour Chrome à la place de Comet, ajoutez `JEVNAV_APP="Google Chrome"` dans `.env`, guillemets compris : sans eux, uv ignore la ligne sans prévenir.
 
 ## 3. Installer la commande
 
@@ -69,7 +69,7 @@ Vérifiez que `~/.local/bin` est dans votre `PATH`, puis lancez un premier essai
 jevnav --url https://en.wikipedia.org/wiki/Main_Page --goal "Search Wikipedia for Alan Turing and open his article" --values '{"query":"Alan Turing"}' --close
 ```
 
-La commande rend une seule ligne JSON. Sur ce test, attendez `"status": "done"` en trois à quatre secondes, avec l'adresse de l'article d'Alan Turing dans le champ `url`.
+La commande rend une seule ligne JSON. Sur ce test, attendez `"status": "done"` en quatre à six secondes, avec l'adresse de l'article d'Alan Turing dans le champ `url`.
 
 ## 4. Lire le résultat
 
@@ -80,6 +80,7 @@ La commande rend une seule ligne JSON. Sur ce test, attendez `"status": "done"` 
 | `confirm` | le prochain clic est irréversible (payer, envoyer, supprimer, réserver, accepter…) | demander à l'utilisateur, relancer avec `--target` et `--confirm "<libellé>"` |
 | `login_timeout` | un formulaire de connexion attend toujours | l'utilisateur remplit avec 1Password, puis relance avec `--target` |
 | `in_progress` | le budget de temps est écoulé | relancer avec `--target` |
+| `refused` | une clé de `--values` ressemble à un secret | retirer la clé ; la connexion passe par 1Password |
 | `blocked`, `error` | Jev ne trouve plus d'action utile, ou une erreur technique | lire `error`, changer d'approche |
 
 L'onglet reste ouvert après chaque appel. `--target` reprend le même onglet avec l'historique des actions, sans `--url`. `--close` ferme l'onglet quand le statut est `done` ou `blocked`.
@@ -93,7 +94,7 @@ jevnav ne tape jamais un identifiant, un mot de passe ou un code. Quand il voit 
 3. vous remplissez avec 1Password (empreinte), puis vous cliquez le bouton de connexion, écran par écran ;
 4. dès que le formulaire disparaît, il reprend la tâche.
 
-L'attente dure 120 secondes par défaut (`--login-wait`). Les clés de `--values` qui ressemblent à un secret (`password`, `email`, `login`, `code`…) sont refusées avant toute navigation.
+L'attente dure 120 secondes par défaut (`--login-wait`), 30 secondes depuis le chat de Claude Desktop. Les clés de `--values` qui ressemblent à un secret (`password`, `email`, `login`, `code`…) sont refusées avant toute navigation.
 
 ## 6. Brancher Claude Code
 
@@ -148,4 +149,5 @@ uv run --env-file .env python bench/run.py --runs 3          # banc de performan
 | `Model connection failed` | l'API TypeSafe est injoignable | vérifier le réseau et la clé, relancer |
 | `blocked` immédiat sur une application web | la page s'affiche lentement | relancer avec `--target` ; jevnav attend déjà jusqu'à 10 s une page vide |
 | `login_timeout` sans notification | le formulaire est dans une iframe d'un autre domaine | se connecter à la main, puis relancer avec `--target` |
-| `confirm` sur un bouton anodin | la liste des libellés irréversibles l'inclut | relancer avec `--confirm "<libellé>"` |
+| `confirm` sur un bouton anodin | son libellé figure dans la liste des actions irréversibles, ou il n'a pas de libellé lisible | relancer avec `--confirm "<libellé>"` |
+| `ModuleNotFoundError: jev_ultrafast` | macOS a caché le fichier `.pth` de `.venv` (vu dans `~/Documents`) et Python 3.14 l'ignore | préfixer la commande par `PYTHONPATH=.`, ou cloner hors de `~/Documents` |

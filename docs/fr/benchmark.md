@@ -40,7 +40,7 @@ Mêmes tâches, même Mac, mesurées le même jour avec les autres approches.
 
 Lecture :
 - **Face à Claude seul**, jevnav va 30 à 47 fois plus vite sur un lien et environ 9 fois plus vite sur le bouton asynchrone.
-- **Face au mod dans Claude Desktop**, l'écart vient du plancher de l'application : chaque clic, frappe ou script coûte 2,2 à 2,5 s. Une tâche de huit actions ne descend donc pas sous 20 s, quel que soit le décideur.
+- **Face au mod dans Claude Desktop**, l'écart vient du plancher de l'application : chaque clic, frappe ou script coûte 2,2 à 2,5 s. Une tâche de huit actions ne descend donc pas sous 18 s, quel que soit le décideur.
 - **Face à jev-ultrafast d'origine**, jevnav tient le même temps sans modèle de texte et corrige le « fini » prématuré. Il ajoute aussi trois choses : il travaille dans le profil réel, il passe les connexions par 1Password et il s'arrête avant toute action irréversible.
 
 ## Pourquoi c'est plus rapide
