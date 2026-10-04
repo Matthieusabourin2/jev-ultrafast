@@ -69,7 +69,7 @@ Vérifiez que `~/.local/bin` est dans votre `PATH`, puis lancez un premier essai
 jevnav --url https://en.wikipedia.org/wiki/Main_Page --goal "Search Wikipedia for Alan Turing and open his article" --values '{"query":"Alan Turing"}' --close
 ```
 
-La commande rend une seule ligne JSON. Sur ce test, attendez `"status": "done"` en trois à quatre secondes.
+La commande rend une seule ligne JSON. Sur ce test, attendez `"status": "done"` en trois à quatre secondes, avec l'adresse de l'article d'Alan Turing dans le champ `url`.
 
 ## 4. Lire le résultat
 
@@ -86,7 +86,7 @@ L'onglet reste ouvert après chaque appel. `--target` reprend le même onglet av
 
 ## 5. Se connecter avec 1Password
 
-jevnav ne tape jamais un identifiant, un mot de passe ou un code. Quand il voit un formulaire de connexion :
+jevnav ne tape jamais un identifiant, un mot de passe ou un code. Quand il voit un formulaire de connexion, il vous passe la main et attend que la connexion aboutisse :
 
 1. il met le navigateur au premier plan et place le curseur dans le champ identifiant ;
 2. il affiche une notification macOS ;
