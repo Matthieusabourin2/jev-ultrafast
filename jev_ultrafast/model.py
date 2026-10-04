@@ -17,6 +17,8 @@ def post_json(url, key, body):
         try:
             response = CLIENT.post(url, json=body, headers={"Authorization": f"Bearer {key}"})
         except httpx.HTTPError:
+            if attempt < 2:
+                continue
             raise RuntimeError("Model connection failed; no action executed.") from None
         if response.status_code in {429, 529, 503} and attempt < 2:
             time.sleep(0.5 * 2**attempt)
@@ -173,7 +175,10 @@ def field_text(context):
         {
             "model": model,
             "max_tokens": 1024,
-            "response_format": {"type": "json_object"},
+            # Anthropic's OpenAI-compatible endpoint only accepts strict json_schema.
+            "response_format": {"type": "json_schema", "json_schema": {"name": "field_value", "strict": True, "schema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"], "additionalProperties": False}}}
+            if "api.anthropic.com" in base
+            else {"type": "json_object"},
             **reasoning,
             "messages": [
                 {"role": "system", "content": TEXT_VALUE},

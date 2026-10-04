@@ -1,0 +1,6 @@
+<!doctype html><meta charset="utf-8"><title>Delivery address</title>
+<h1>Delivery address</h1>
+<label>Postal code <input id="postal" inputmode="numeric" maxlength="5"></label>
+<p id="out"></p>
+<script>document.getElementById('postal').addEventListener('input', e => {
+  document.getElementById('out').textContent = e.target.value.length === 5 ? 'Postal code saved' : ''; });</script>

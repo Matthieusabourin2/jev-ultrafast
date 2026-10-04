@@ -1,3 +1,58 @@
+# jevnav: Jev Ultrafast in your own browser
+
+> Fork of [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast). The upstream README follows below, unchanged.
+> Documentation in French: [installation](docs/fr/installation.md) · [benchmark](docs/fr/benchmark.md).
+
+Google Flights in 9 seconds, verified.
+
+## What it is
+
+Upstream Jev Ultrafast opens its own tab, lets [TypeSafe's Jev](https://docs.typesafe.ai/introduction) pick every step, and asks a small LLM to write text. This fork adds `jevnav`, a command that runs the same loop inside the browser you already use: your Comet or Chrome profile, your open sessions, your 1Password.
+
+The split is simple. Claude, or any caller, states the goal and supplies the values to type. Jev decides each click in 0.2 to 0.4 seconds. The reasoning model plans; the decision model acts.
+
+## How it works
+
+```
+caller ──goal + values──▶ jevnav ──CDP──▶ your Comet/Chrome profile
+                            │  Jev picks the next operation and element
+                            │  Jev picks which supplied value fits a field
+                            │  sign-in form  → tab to front, focus the field, wait for 1Password
+                            │  irreversible click (pay, send, delete…) → stop with "confirm"
+                            ▼
+caller ◀── one JSON line: status, actions, url, title, text, target
+```
+
+- **No text LLM.** Values come from `--values`. A field without a matching value returns `need_value`.
+- **Credentials stay with 1Password.** jevnav never types a username, email, password or code. It checks the live element (type, autocomplete, input mode, labels, focus) before every keystroke, and pauses on sign-in forms until you fill them and click the sign-in button.
+- **Resumable.** The tab stays open; `--target` picks up where the last call stopped.
+- **Two integrations.** A Bash command for Claude Code, and an MCP server (`jev_ultrafast/mcp_server.py`) for Claude Desktop chat.
+
+Measured on October 4, 2026, three runs each, every run checked on the final page: Wikipedia search 3.7 s, Google Flights one-way search 9.1 s, async button 3.9 s, all 12 runs verified. Claude alone took 27 to 42 s on the simplest of these tasks. Details and limits: [benchmark](docs/fr/benchmark.md).
+
+## How to use it
+
+Requirements: macOS, Comet or Chrome 144+, [uv](https://docs.astral.sh/uv/), a TypeSafe API key, 1Password with its browser extension.
+
+```bash
+git clone https://github.com/Matthieusabourin2/jev-ultrafast.git ~/jev-ultrafast
+cd ~/jev-ultrafast && uv sync
+printf 'TYPESAFE_API_KEY=your_key\nTYPESAFE_MODEL=jev-latest\n' > .env
+```
+
+In the browser, open `chrome://inspect/#remote-debugging`, check **Allow remote debugging for this browser instance**, then click **Allow** when the first run asks. You click Allow again after each browser restart.
+
+```bash
+uv run --env-file .env jevnav --url https://en.wikipedia.org/wiki/Main_Page \
+  --goal "Search Wikipedia for Alan Turing and open his article" --values '{"query":"Alan Turing"}' --close
+```
+
+Statuses: `done`, `need_value`, `confirm` (resume with `--confirm "<label>"` once the user agrees), `login_timeout`, `in_progress`, `blocked`, `error`. The full walkthrough, Claude Code rule, Claude Desktop MCP setup and troubleshooting are in the [installation guide](docs/fr/installation.md).
+
+Checks: `uv run pytest -q tests` (unit), `uv run --env-file .env python examples/guards.py` (credential guards in the real browser), `uv run --env-file .env python bench/run.py --runs 3` (benchmark).
+
+---
+
 <img src="docs/banner.svg" alt="Jev Ultrafast · Browser Use × TypeSafe" width="100%" />
 
 # Jev Ultrafast ⚡

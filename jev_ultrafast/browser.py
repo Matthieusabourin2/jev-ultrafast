@@ -18,14 +18,16 @@ class StalePage(ValueError):
 
 
 class Browser:
-    def __init__(self, url):
+    def __init__(self, url, target=None):
         ensure_daemon()
-        self.target = cdp("Target.createTarget", url="about:blank", background=True)["targetId"]
+        # An existing target lets a caller resume the same tab across runs.
+        self.target = target or cdp("Target.createTarget", url="about:blank", background=True)["targetId"]
         self.session = cdp("Target.attachToTarget", targetId=self.target, flatten=True)["sessionId"]
         self.call("Emulation.setDeviceMetricsOverride", width=1120, height=780, deviceScaleFactor=1, mobile=False)
         # Keep rAF/menus rendering in an owned background tab, without activating the user's Chrome tab.
         self.call("Emulation.setFocusEmulationEnabled", enabled=True)
-        self.call("Page.navigate", url=url)
+        if url:
+            self.call("Page.navigate", url=url)
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
             if self.evaluate("document.readyState") == "complete":
@@ -102,7 +104,8 @@ class Browser:
             raise StalePage("Page changed since this decision. Observe again.")
         if action["kind"] == "wait":
             time.sleep(0.1)
-        result = browser_operation({"operation": "act", "session": self.session, "action": action, "text": text})
+        result = browser_operation({"operation": "act", "session": self.session, "action": action, "text": text,
+                                    "focus_guard": getattr(self, "focus_guard", None)})
         self.after_input = action if action["kind"] != "wait" else None
         return result
 
@@ -167,6 +170,9 @@ def browser_operation(request):
                 for event in ("mousePressed", "mouseReleased"):
                     call("Input.dispatchMouseEvent", type=event, x=x, y=y, button="left", clickCount=1)
                 if kind == "fill":
+                    # A click can move focus (combobox popups do, so can login modals); callers may veto the target.
+                    if request.get("focus_guard") and not evaluate(request["focus_guard"]):
+                        raise StalePage("Focus moved to a field the caller refuses. Observe again.")
                     call(
                         "Input.dispatchKeyEvent",
                         type="keyDown",

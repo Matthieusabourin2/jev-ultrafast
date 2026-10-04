@@ -1,0 +1,94 @@
+{
+  "wikipedia": [
+    {
+      "status": "done",
+      "nav_s": 3.71,
+      "elapsed_s": 4.12,
+      "actions": 2,
+      "verified": true
+    },
+    {
+      "status": "done",
+      "nav_s": 3.03,
+      "elapsed_s": 3.33,
+      "actions": 2,
+      "verified": true
+    },
+    {
+      "status": "done",
+      "nav_s": 5.39,
+      "elapsed_s": 5.76,
+      "actions": 2,
+      "verified": true
+    }
+  ],
+  "flights": [
+    {
+      "status": "done",
+      "nav_s": 9.09,
+      "elapsed_s": 9.88,
+      "actions": 11,
+      "verified": true
+    },
+    {
+      "status": "done",
+      "nav_s": 9.08,
+      "elapsed_s": 9.81,
+      "actions": 11,
+      "verified": true
+    },
+    {
+      "status": "done",
+      "nav_s": 9.49,
+      "elapsed_s": 10.16,
+      "actions": 11,
+      "verified": true
+    }
+  ],
+  "link": [
+    {
+      "status": "done",
+      "nav_s": 0.87,
+      "elapsed_s": 1.51,
+      "actions": 1,
+      "verified": true
+    },
+    {
+      "status": "done",
+      "nav_s": 0.8,
+      "elapsed_s": 1.19,
+      "actions": 1,
+      "verified": true
+    },
+    {
+      "status": "done",
+      "nav_s": 0.86,
+      "elapsed_s": 1.26,
+      "actions": 1,
+      "verified": true
+    }
+  ],
+  "async_button": [
+    {
+      "status": "done",
+      "nav_s": 3.91,
+      "elapsed_s": 4.21,
+      "actions": 2,
+      "verified": true
+    },
+    {
+      "status": "done",
+      "nav_s": 3.85,
+      "elapsed_s": 4.16,
+      "actions": 2,
+      "verified": true
+    },
+    {
+      "status": "done",
+      "nav_s": 3.87,
+      "elapsed_s": 4.26,
+      "actions": 2,
+      "verified": true
+    }
+  ]
+}

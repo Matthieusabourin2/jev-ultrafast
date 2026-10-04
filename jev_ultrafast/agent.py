@@ -10,19 +10,22 @@ from .questions import MAX_STEPS
 
 
 class Agent:
-    def __init__(self, url, goals, *, record_dir=None, screenshots=False):
+    def __init__(self, url, goals, *, record_dir=None, screenshots=False, target=None, text_fn=None):
         task = goals.strip() if isinstance(goals, str) else "\n".join(goals).strip()
         if not task:
             raise ValueError("Supply a task")
         plan = [task]
         self.pending_text = None
-        self.browser = Browser(url)
+        # text_fn(context) -> (text, helper) replaces the text LLM, e.g. with caller-supplied values.
+        self.text_fn = text_fn
+        self.browser = Browser(url, target=target)
         self.record_dir = Path(record_dir) if record_dir else None
         self.screenshots = screenshots or bool(record_dir)
         try:
             page = self.browser.observe(screenshot=self.screenshots)
         except Exception:
-            self.browser.close()
+            if not target:  # never close a tab the caller asked to resume
+                self.browser.close()
             raise
         self.state = dict(
             browser=self.browser,
@@ -110,7 +113,7 @@ class Agent:
                 if self.pending_text and self.pending_text[0] == context:
                     _, text, helper = self.pending_text
                 else:
-                    text, helper = field_text(context)
+                    text, helper = (getattr(self, "text_fn", None) or field_text)(context)
                     self.pending_text = (context, text, helper)
                     state["text_calls"].append({**helper, "field": action["label"], "value": text})
             # Browser.act checks freshness immediately before input, including after text generation.
