@@ -7,6 +7,7 @@ Writes bench/results/<timestamp>.json and prints a Markdown table.
 import argparse
 import base64
 import json
+import os
 import statistics
 import subprocess
 import sys
@@ -72,7 +73,8 @@ def run_once(task):
     cmd = [sys.executable, "-m", "jev_ultrafast.nav", "--url", task["url"], "--goal", task["goal"], "--text-chars", "0"]
     if task["values"]:
         cmd += ["--values", json.dumps(task["values"])]
-    result = json.loads(subprocess.run(cmd, capture_output=True, text=True).stdout)
+    result = json.loads(subprocess.run(cmd, capture_output=True, text=True,
+                                       env=os.environ | {"JEVNAV_SOURCE": "bench"}).stdout)
     verified = False
     if result.get("target"):
         browser = Browser(None, target=result["target"])

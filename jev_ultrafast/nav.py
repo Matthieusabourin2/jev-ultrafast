@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .agent import Agent
 from .browser import StalePage
@@ -33,6 +34,7 @@ IRREVERSIBLE = re.compile(
     re.I,
 )
 STATE_DIR = Path.home() / ".cache" / "jevnav"
+JOURNAL_DIR = Path.home() / ".claude" / "jev-journal" / "nav"
 
 # Credential test on a live element: type, autocomplete, inputmode and length, not just its label.
 IS_CREDENTIAL = r"""e => { const w = [e.type, e.name, e.id, e.autocomplete, e.placeholder, e.getAttribute('aria-label'),
@@ -118,12 +120,14 @@ def value_chooser(values, typed):
                                     "instructions": {"goal": context["goal"], "rules": VALUE_RULES}}},
         }
         result = post_json("https://api.typesafe.ai/v1/systemone", os.environ["TYPESAFE_API_KEY"], body)
+        text_fn.input_tokens += result.get("usage", {}).get("input_tokens", 0)
         key = validate_choice(result["answers"].get("value", {}), criteria)["choice"]
         if key == "NONE":
             raise Stop("need_value", field=field)
         return values[key], {"model": f"values:{key}", "latency_ms": round((time.perf_counter() - started) * 1000),
                              "usage": result.get("usage", {})}
 
+    text_fn.input_tokens = 0
     return text_fn
 
 
@@ -201,7 +205,8 @@ def run(args):
             saved = {}
     typed = saved.get("typed", [])
     started = time.perf_counter()
-    agent = Agent(args.url, args.goal, target=args.target, text_fn=value_chooser(values, typed))
+    chooser = value_chooser(values, typed)
+    agent = Agent(args.url, args.goal, target=args.target, text_fn=chooser)
     state, browser = agent.state, agent.browser
     # Refuse to type when the click left focus on a credential field (e.g. a login modal opened).
     browser.focus_guard = ("(() => { let a = document.activeElement; while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;"
@@ -281,6 +286,8 @@ def run(args):
         "title": page["title"],
         "text": page["text"][: args.text_chars],
         "target": browser.target,
+        "steps": len(state["history"]) - len(saved.get("history", [])),
+        "jev_input_tokens": chooser.input_tokens + sum(d.get("usage", {}).get("input_tokens", 0) for d in state["decisions"]),
     }
     if status in {"done", "blocked"} and args.close:
         agent.close()
@@ -289,6 +296,21 @@ def run(args):
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         (STATE_DIR / f"{browser.target}.json").write_text(json.dumps({"goal": args.goal, "history": history, "typed": typed}))
     return result
+
+
+def log(args, result):
+    """One line per run for the weekly review: domain, status, counts and timings only, never values or page text."""
+    url = args.url or result.get("url") or ""
+    entry = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "source": os.environ.get("JEVNAV_SOURCE", "use"),
+             "domain": urlsplit(url).hostname or "", "resumed": bool(args.target),
+             "status": result["status"]}
+    entry |= {k: result[k] for k in ("steps", "logins", "elapsed_s", "nav_s", "jev_input_tokens") if k in result}
+    try:
+        JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
+        with open(JOURNAL_DIR / f"{time.strftime('%Y-%m-%d')}.jsonl", "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except OSError:
+        pass  # the journal must never break a run
 
 
 def main():
@@ -312,6 +334,7 @@ def main():
         result = {"status": stop.status, **stop.info}
     except Exception as e:  # noqa: BLE001 - the caller needs a JSON status, not a traceback
         result = {"status": "error", "error": f"{type(e).__name__}: {e}"}
+    log(args, result)
     print(json.dumps(result, ensure_ascii=False))
     sys.exit(0 if result["status"] in {"done", "confirm", "need_value", "in_progress"} else 1)
 
