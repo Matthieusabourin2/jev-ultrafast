@@ -1,57 +1,60 @@
-# jevnav: Jev Ultrafast in your own browser
+# jevnav : Jev Ultrafast dans votre propre navigateur
 
-> Fork of [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast). The upstream README follows below, unchanged.
-> Documentation in French: [installation](docs/fr/installation.md) · [benchmark](docs/fr/benchmark.md).
+> Fork de [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast). Le README d'origine, en anglais, reste disponible en bas de page.
+> Documentation : [installation](docs/fr/installation.md) · [benchmark](docs/fr/benchmark.md).
 
-Google Flights in 9 seconds, verified.
+Google Flights rempli en 9 secondes, vérifié trois fois sur trois.
 
-## What it is
+## Ce que c'est
 
-Upstream Jev Ultrafast opens its own tab, lets [TypeSafe's Jev](https://docs.typesafe.ai/introduction) pick every step, and asks a small LLM to write text. This fork adds `jevnav`, a command that runs the same loop inside the browser you already use: your Comet or Chrome profile, your open sessions, your 1Password.
+Jev Ultrafast d'origine ouvre son propre onglet, laisse [Jev de TypeSafe](https://docs.typesafe.ai/introduction) choisir chaque pas et confie la saisie de texte à un petit LLM. Ce fork ajoute `jevnav`, une commande qui fait tourner la même boucle dans le navigateur que vous utilisez déjà : votre profil Comet ou Chrome, vos sessions ouvertes, votre 1Password.
 
-The split is simple. Claude, or any caller, states the goal and supplies the values to type. Jev decides each click in 0.2 to 0.4 seconds. The reasoning model plans; the decision model acts.
+Le partage des rôles tient en une ligne. Claude, ou tout autre appelant, fixe l'objectif et fournit les valeurs à saisir ; Jev décide chaque clic en 0,2 à 0,4 seconde. Le modèle qui raisonne planifie, le modèle de décision agit.
 
-## How it works
+## Comment ça marche
 
 ```
-caller ──goal + values──▶ jevnav ──CDP──▶ your Comet/Chrome profile
-                            │  Jev picks the next operation and element
-                            │  Jev picks which supplied value fits a field
-                            │  sign-in form  → tab to front, focus the field, wait for 1Password
-                            │  irreversible click (pay, send, delete…) → stop with "confirm"
-                            ▼
-caller ◀── one JSON line: status, actions, url, title, text, target
+appelant ──objectif + valeurs──▶ jevnav ──CDP──▶ votre profil Comet ou Chrome
+                                   │  Jev choisit l'opération et l'élément suivants
+                                   │  Jev choisit quelle valeur fournie va dans quel champ
+                                   │  formulaire de connexion → onglet au premier plan, curseur dans le champ, attente de 1Password
+                                   │  clic irréversible (payer, envoyer, supprimer…) → arrêt avec « confirm »
+                                   ▼
+appelant ◀── une ligne JSON : status, actions, url, title, text, target
 ```
 
-- **No text LLM.** Values come from `--values`. A field without a matching value returns `need_value`.
-- **Credentials stay with 1Password.** jevnav never types a username, email, password or code. It checks the live element (type, autocomplete, input mode, labels, focus) before every keystroke, and pauses on sign-in forms until you fill them and click the sign-in button.
-- **Resumable.** The tab stays open; `--target` picks up where the last call stopped.
-- **Two integrations.** A Bash command for Claude Code, and an MCP server (`jev_ultrafast/mcp_server.py`) for Claude Desktop chat.
+- **Aucun LLM de texte.** Les valeurs viennent de `--values`. Un champ sans valeur correspondante renvoie `need_value`.
+- **Les identifiants restent dans 1Password.** jevnav ne tape jamais un identifiant, une adresse mail, un mot de passe ou un code. Avant chaque frappe, il contrôle l'élément réel (type, autocomplétion, mode de saisie, libellés, focus), et il s'arrête sur les formulaires de connexion jusqu'à ce que vous les remplissiez et cliquiez le bouton de connexion.
+- **Reprise possible.** L'onglet reste ouvert ; `--target` repart de là où l'appel précédent s'est arrêté.
+- **Deux branchements.** Une commande Bash pour Claude Code, et un serveur MCP (`jev_ultrafast/mcp_server.py`) pour le chat de Claude Desktop.
 
-Measured on October 4, 2026, three runs each, every run checked on the final page: Wikipedia search 3.7 s, Google Flights one-way search 9.1 s, async button 3.9 s, all 12 runs verified. Claude alone took 27 to 42 s on the simplest of these tasks. Details and limits: [benchmark](docs/fr/benchmark.md).
+Mesures du 4 octobre 2026, trois passages par tâche, chacun vérifié sur la page finale : recherche Wikipédia 3,7 s, recherche de vol aller simple sur Google Flights 9,1 s, bouton asynchrone 3,9 s, les 12 passages validés. Sur la plus simple de ces tâches, Claude seul met 27 à 42 s. Détails et limites : [benchmark](docs/fr/benchmark.md).
 
-## How to use it
+## Comment l'utiliser
 
-Requirements: macOS, Comet or Chrome 144+, [uv](https://docs.astral.sh/uv/), a TypeSafe API key, 1Password with its browser extension.
+Prérequis : macOS, Comet ou Chrome 144+, [uv](https://docs.astral.sh/uv/), une clé API TypeSafe, 1Password et son extension de navigateur.
 
 ```bash
 git clone https://github.com/Matthieusabourin2/jev-ultrafast.git ~/jev-ultrafast
 cd ~/jev-ultrafast && uv sync
-printf 'TYPESAFE_API_KEY=your_key\nTYPESAFE_MODEL=jev-latest\n' > .env
+printf 'TYPESAFE_API_KEY=votre_cle\nTYPESAFE_MODEL=jev-latest\n' > .env
 ```
 
-In the browser, open `chrome://inspect/#remote-debugging`, check **Allow remote debugging for this browser instance**, then click **Allow** when the first run asks. You click Allow again after each browser restart.
+Dans le navigateur, ouvrez `chrome://inspect/#remote-debugging`, cochez **Allow remote debugging for this browser instance**, puis cliquez **Allow** quand le premier lancement le demande. Ce clic se refait après chaque redémarrage du navigateur.
 
 ```bash
 uv run --env-file .env jevnav --url https://en.wikipedia.org/wiki/Main_Page \
   --goal "Search Wikipedia for Alan Turing and open his article" --values '{"query":"Alan Turing"}' --close
 ```
 
-Statuses: `done`, `need_value`, `confirm` (resume with `--confirm "<label>"` once the user agrees), `login_timeout`, `in_progress`, `blocked`, `error`. The full walkthrough, Claude Code rule, Claude Desktop MCP setup and troubleshooting are in the [installation guide](docs/fr/installation.md).
+Statuts : `done`, `need_value`, `confirm` (relancer avec `--confirm "<libellé>"` une fois l'accord de l'utilisateur obtenu), `login_timeout`, `in_progress`, `refused`, `blocked`, `error`. Le pas-à-pas complet, la règle pour Claude Code, le branchement MCP de Claude Desktop et le dépannage sont dans le [guide d'installation](docs/fr/installation.md).
 
-Checks: `uv run pytest -q tests` (unit), `uv run --env-file .env python examples/guards.py` (credential guards in the real browser), `uv run --env-file .env python bench/run.py --runs 3` (benchmark).
+Vérifications : `uv run pytest -q tests` (tests unitaires), `uv run --env-file .env python examples/guards.py` (gardes d'identifiants dans le vrai navigateur), `uv run --env-file .env python bench/run.py --runs 3` (banc de performance).
 
 ---
+
+<details>
+<summary><strong>README d'origine (anglais)</strong>, reproduit sans modification</summary>
 
 <img src="docs/banner.svg" alt="Jev Ultrafast · Browser Use × TypeSafe" width="100%" />
 
@@ -195,3 +198,5 @@ Tests are offline. `uv run python scripts/check_guards.py` checks real controls 
 ---
 
 [Browser Use](https://github.com/browser-use/browser-use) · [Browser Harness](https://github.com/browser-use/browser-harness) · [TypeSafe speculative fan-out](https://docs.typesafe.ai/patterns/fan-out)
+
+</details>
