@@ -214,6 +214,7 @@ def run(args):
                            " return !a || a.tagName !== 'INPUT' || !(" + IS_CREDENTIAL + ")(a); })()")
     state["history"] = saved.get("history", [])
     status, info, logins, empty_waits, done_waits, last_node = None, {}, 0, 0, 0, None
+    cycle = []
     confirm = args.confirm
     try:
         while state["status"] not in {"done", "blocked"}:
@@ -260,6 +261,13 @@ def run(args):
                 helper = (state["history"][-1].get("text_helper") or "") if len(state["history"]) > steps else ""
                 if helper.startswith("values:"):  # count a value only once it was actually typed
                     typed.append(helper[len("values:"):])
+                # Jev can cycle between two page states (a menu opening and closing), which the upstream no-change
+                # check misses: stop after 8 such actions instead of running to the step cap. Steppers, pagination
+                # and date pickers repeat a label too, but each click reaches a new page state, so they pass.
+                if action and action["kind"] not in {"scroll", "wait"}:
+                    cycle = (cycle + [(label, state["page"]["fingerprint"])])[-8:]
+                    if len(cycle) == 8 and len({c[0] for c in cycle}) <= 2 and len({c[1] for c in cycle}) <= 2:
+                        raise Stop("blocked", reason="loop", actions=sorted({c[0] for c in cycle}))
             except StalePage:
                 state["decision"], state["status"] = None, "ready"
                 time.sleep(0.2)

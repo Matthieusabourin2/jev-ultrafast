@@ -76,6 +76,28 @@ class Browser:
                 )
             except RuntimeError:
                 pass
+        # Pages keep rendering after load or input (hydration, suggestion lists). A decision made on an unsettled
+        # read fails the freshness check and costs a second model call, so wait until the read stops changing.
+        page = self.read(screenshot)
+        marker, changed = page["marker"], False
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            time.sleep(0.15)
+            try:
+                current = self.evaluate(MARKER)
+            except StalePage:
+                current = None
+            if current == marker:
+                break
+            marker, changed = current, True
+        if changed:
+            try:
+                page = self.read(screenshot)
+            except StalePage:
+                pass  # keep the earlier read: every action re-checks freshness before input
+        return page
+
+    def read(self, screenshot):
         for attempt in range(10):
             try:
                 return browser_operation(

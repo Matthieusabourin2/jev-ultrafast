@@ -37,3 +37,13 @@ def test_journal_keeps_no_values_or_page_text(tmp_path, monkeypatch):
     line = next(tmp_path.iterdir()).read_text()
     assert '"domain": "fr.wikipedia.org"' in line
     assert not any(x in line for x in ("Zurich", "page body", "user", "pw", "secret", "frag"))
+
+
+def test_post_json_retries_unreadable_and_server_errors(monkeypatch):
+    import httpx
+    from jev_ultrafast import model
+
+    answers = [httpx.Response(500), httpx.Response(200, content=b""), httpx.Response(200, json={"ok": 1})]
+    monkeypatch.setattr(model.CLIENT, "post", lambda *a, **k: answers.pop(0))
+    monkeypatch.setattr(model.time, "sleep", lambda s: None)
+    assert model.post_json("u", "k", {}) == {"ok": 1}

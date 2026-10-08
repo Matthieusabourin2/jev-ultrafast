@@ -20,12 +20,18 @@ def post_json(url, key, body):
             if attempt < 2:
                 continue
             raise RuntimeError("Model connection failed; no action executed.") from None
-        if response.status_code in {429, 529, 503} and attempt < 2:
+        if response.status_code in {429, 500, 502, 503, 504, 529} and attempt < 2:
             time.sleep(0.5 * 2**attempt)
             continue
         if response.is_error:
             raise RuntimeError(f"Model provider returned HTTP {response.status_code}; no action executed.")
-        return response.json()
+        try:
+            return response.json()
+        except ValueError:  # a degraded provider sometimes answers 200 with an empty or non-JSON body
+            if attempt < 2:
+                time.sleep(0.5 * 2**attempt)
+                continue
+            raise RuntimeError("Model provider returned an unreadable answer; no action executed.") from None
     raise RuntimeError("Model unavailable")
 
 
