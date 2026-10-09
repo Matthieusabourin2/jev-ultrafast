@@ -77,11 +77,12 @@ La commande rend une seule ligne JSON. Sur ce test, attendez `"status": "done"` 
 |---|---|---|
 | `done` | l'objectif est atteint et visible | lire `url`, `title`, `text` |
 | `need_value` | un champ attend une valeur absente de `--values` | ajouter la valeur pour `field`, relancer avec `--target` |
-| `confirm` | le prochain clic est irréversible (payer, envoyer, supprimer, réserver, accepter…) | demander à l'utilisateur, relancer avec `--target` et `--confirm "<libellé>"` |
+| `confirm` | le prochain clic engage : payer, envoyer, partager, supprimer, réserver, valider, se déconnecter… Enregistrer, modifier ou archiver passent sans confirmation | demander à l'utilisateur, relancer avec `--target` et `--confirm "<libellé>"` |
 | `login_timeout` | un formulaire de connexion attend toujours | l'utilisateur remplit avec 1Password, puis relance avec `--target` |
 | `in_progress` | le budget de temps est écoulé | relancer avec `--target` |
 | `refused` | une clé de `--values` ressemble à un secret | retirer la clé ; la connexion passe par 1Password |
-| `blocked`, `error` | Jev ne trouve plus d'action utile, ou une erreur technique | lire `error`, changer d'approche |
+| `blocked` | Jev ne trouve plus d'action utile ; `reason` vaut `loop` s'il tournait en rond, `unreachable` si la cible restait couverte | reformuler l'objectif ou changer d'approche |
+| `error` | une erreur technique | lire `error`, relancer avec `--target` |
 
 L'onglet reste ouvert après chaque appel. `--target` reprend le même onglet avec l'historique des actions, sans `--url`. `--close` ferme l'onglet quand le statut est `done` ou `blocked`.
 
@@ -94,7 +95,7 @@ jevnav ne tape jamais un identifiant, un mot de passe ou un code. Quand il voit 
 3. vous remplissez avec 1Password (empreinte), puis vous cliquez le bouton de connexion, écran par écran ;
 4. dès que le formulaire disparaît, il reprend la tâche.
 
-L'attente dure 120 secondes par défaut (`--login-wait`), 30 secondes depuis le chat de Claude Desktop. Les clés de `--values` qui ressemblent à un secret (`password`, `email`, `login`, `code`…) sont refusées avant toute navigation.
+L'attente dure 120 secondes par défaut (`--login-wait`), 30 secondes depuis le chat de Claude Desktop. Les clés de `--values` qui ressemblent à un secret (`password`, `login`, `otp`, `sms_code`, `card_number`…) sont refusées avant toute navigation. Une adresse mail est acceptée : sur une page de connexion, jevnav reconnaît le champ et le laisse à 1Password ; sur un formulaire de partage ou de contact, il la saisit.
 
 ## 6. Brancher Claude Code
 

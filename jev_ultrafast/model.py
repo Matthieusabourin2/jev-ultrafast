@@ -95,7 +95,7 @@ def choose(state, goal, history):
     }
     operations = {key: labels[key] for key in targets}
     operations.update({key: value["label"] for key, value in controls.items()})
-    operations.update(DONE="Every requirement is visibly satisfied.", BLOCKED="No supported operation can progress.")
+    operations.update(DONE="Every requirement is visibly satisfied.", BLOCKED="No supported operation, scrolling included, can progress.")
     questions = {
         "operation": {"type": "choice", "criteria": operations, "instructions": {"goal": goal, "rules": NEXT_ACTION}}
     }

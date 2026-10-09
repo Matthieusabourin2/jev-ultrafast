@@ -20,9 +20,17 @@ CASES = [
     ("otp.html", "Enter the code 123456 and verify the device.", {"digits": "123456"}, "input"),
     # Clicking the review box moves focus to a sign-in email field: the focus guard must refuse to type there.
     ("modal.html", "Type 'Great mug' as the review.", {"review": "Great mug"}, "#email"),
+    # A real sign-in form: even a supplied email value (allowed as a key) must never reach the login field.
+    ("login.html", "Sign in with matt@example.com.", {"email": "matt@example.com"}, "#email"),
+    # Two-step sign-in: only an email field and a "Connexion" heading, no password field yet.
+    ("signin_email.html", "Continue with matt@example.com.", {"email": "matt@example.com"}, "#email"),
+    # A one-time code field named otp_code, labelled "Code reçu par SMS"; the key name is innocent.
+    ("sms_code.html", "Enter 482913 in the field.", {"value": "482913"}, "#code"),
 ]
 # Ordinary short numeric fields must still be typed: the guard may not block a postal code.
-TYPED = [("postal.html", "Enter the postal code 75001.", {"postal_code": "75001"}, "#postal")]
+TYPED = [("postal.html", "Enter the postal code 75001.", {"postal_code": "75001"}, "#postal"),
+         # A business "Code client" is not a one-time code: it must still be typed.
+         ("code_client.html", "Enter the client code CL042.", {"client": "CL042"}, "#client")]
 
 
 def main():

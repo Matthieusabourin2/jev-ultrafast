@@ -1,0 +1,9 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Connecteurs</title>
+<style>html,body{height:100%;margin:0;overflow:hidden;font:15px sans-serif}.app{display:flex;height:100%}nav{width:200px;background:#f4f4f4}
+main{flex:1;overflow-y:auto;padding:20px}.row{height:90px;border-bottom:1px solid #ddd;display:flex;align-items:center;gap:12px}</style></head><body>
+<div class="app"><nav><p>Paramètres</p></nav><main id="m"><h1>Connecteurs</h1></main></div>
+<script>
+const names=["Google Drive","Gmail","Google Agenda","Slack","Notion","Linear","GitHub","Asana","Figma","Stripe","Zapier","gbrain"];
+for(const n of names){const d=document.createElement('div');d.className='row';d.innerHTML=`<strong>${n}</strong><button>Configurer</button>`;
+ d.querySelector('button').onclick=()=>{window.__result='configure:'+n;document.title='Fait'};m.append(d)}
+</script></body></html>

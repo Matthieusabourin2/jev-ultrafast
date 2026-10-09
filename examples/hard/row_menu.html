@@ -1,0 +1,18 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Projets</title>
+<style>body{font:15px sans-serif;margin:30px}li{display:flex;gap:12px;align-items:center;padding:8px;border-bottom:1px solid #ddd;width:420px}
+li span{flex:1}button.icon{width:28px;height:28px;border:0;background:#eee;border-radius:6px}
+[role=menu]{position:absolute;background:#fff;border:1px solid #ccc;box-shadow:0 2px 8px #0003;padding:4px}
+[role=menuitem]{padding:6px 14px;cursor:pointer}[role=menuitem]:hover{background:#eee}</style></head><body>
+<h1>Projets</h1><ul id="list"></ul>
+<script>
+// Icon-only "…" buttons (svg, no label), one per row; the menu is rendered in a portal at the end of <body>.
+const names=["Clients 2025","Veille IA","Formation SFR","Interne","Archives 2024"];
+const dots='<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg>';
+for (const n of names){const li=document.createElement('li');li.innerHTML=`<span>${n}</span><button class="icon" data-testid="project-menu-trigger" aria-haspopup="menu">${dots}</button>`;
+ li.querySelector('button').onclick=e=>openMenu(n,e.currentTarget);list.append(li);}
+function openMenu(n,b){document.querySelector('[role=menu]')?.remove();const m=document.createElement('div');m.setAttribute('role','menu');
+ const r=b.getBoundingClientRect();m.style.left=(r.right+4)+'px';m.style.top=r.top+'px';
+ for(const [label,act] of [["Renommer","rename"],["Dupliquer","duplicate"],["Archiver","archive"]]){const i=document.createElement('div');i.setAttribute('role','menuitem');i.tabIndex=-1;i.textContent=label;
+  i.onclick=()=>{m.remove();window.__result=act+':'+n;document.title='Fait';document.body.insertAdjacentHTML('beforeend',`<p>${label} : ${n}</p>`)};m.append(i);}
+ document.body.append(m);}
+</script></body></html>

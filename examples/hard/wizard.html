@@ -1,0 +1,9 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Nouvelle tâche planifiée</title>
+<style>body{font:15px sans-serif;margin:30px}</style></head><body>
+<div role="progressbar" aria-valuenow="1" aria-valuemin="1" aria-valuemax="3" aria-label="Étape 1 sur 3" style="width:300px;height:6px;background:#ccc"></div>
+<h1>Nouvelle tâche planifiée</h1>
+<label for="n">Nom de la tâche</label> <input id="n">
+<p>Fréquence : <label><input type="radio" name="f" value="jour"> Chaque jour</label> <label><input type="radio" name="f" value="lundi"> Chaque lundi</label></p>
+<button id="ok">Créer la tâche</button>
+<script>ok.onclick=()=>{window.__result=n.value+'|'+(document.querySelector('input[name=f]:checked')?.value||'');document.body.innerHTML='<h1>Tâche créée</h1>';document.title='Fait'};</script>
+</body></html>

@@ -1,0 +1,11 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Déclaration d'activité</title>
+<style>body{font:15px sans-serif;margin:30px}label{display:block;margin:10px 0 2px}</style></head><body>
+<header><a href="#">Mon compte</a> · <a href="#">Déconnexion</a></header>
+<h1>Informations sur votre entreprise</h1><form onsubmit="event.preventDefault()">
+<label for="siret">SIRET (14 chiffres)</label><input id="siret" inputmode="numeric" maxlength="14">
+<label for="ape">Code APE</label><input id="ape" maxlength="5">
+<label for="cp">Code commune</label><input id="cp" inputmode="numeric" maxlength="5">
+<label for="mail">E-mail de contact</label><input id="mail" type="email">
+<p><button id="next" type="button">Étape suivante</button></p></form>
+<script>next.onclick=()=>{window.__result=[siret.value,ape.value,cp.value,mail.value].join('|');document.title='Fait'};</script>
+</body></html>

@@ -1,0 +1,16 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Choix du compte</title>
+<style>body{font:15px sans-serif;margin:30px}.combo{width:320px;border:1px solid #888;padding:8px;border-radius:4px;cursor:pointer}
+ul[role=listbox]{list-style:none;margin:0;padding:0;border:1px solid #888;width:336px}li[role=option]{padding:8px;cursor:pointer}li[role=option]:hover{background:#eef}</style></head><body>
+<h1>Mon espace</h1><p>Sélectionnez le compte à consulter.</p>
+<div id="combo" class="combo" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lbl" tabindex="0"><span id="lbl">Compte</span> : <span id="cur">Employeur</span> ▾</div>
+<div id="pop"></div>
+<p><button id="go">Valider</button></p>
+<script>
+const accounts=["Employeur","Travailleur indépendant","Particulier employeur","Auto-entrepreneur (ancien)"];
+combo.onclick=()=>{if(pop.firstChild){pop.innerHTML='';combo.setAttribute('aria-expanded','false');return}
+ const ul=document.createElement('ul');ul.setAttribute('role','listbox');
+ for(const a of accounts){const li=document.createElement('li');li.setAttribute('role','option');li.textContent=a;li.setAttribute('aria-selected',String(a===cur.textContent));
+  li.onclick=()=>{cur.textContent=a;pop.innerHTML='';combo.setAttribute('aria-expanded','false')};ul.append(li)}
+ pop.append(ul);combo.setAttribute('aria-expanded','true')};
+go.onclick=()=>{window.__result=cur.textContent;document.title='Fait';document.querySelector('p').textContent='Compte ouvert : '+cur.textContent};
+</script></body></html>

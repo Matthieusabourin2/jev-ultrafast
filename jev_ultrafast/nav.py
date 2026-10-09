@@ -22,58 +22,101 @@ from .model import post_json, validate_choice
 
 SECRET = re.compile(
     r"passw|passcode|\bpass\b|pwd|mdp|mot.?de.?passe|contraseña|secret|token|otp|totp|2fa|\bcode\b|cvv|cvc|card|carte|"
-    r"tarjeta|iban|ssn|\bpin\b|user.?name|usuario|login|identifiant|e-?mail|dni|nif",
+    r"tarjeta|iban|ssn|\bpin\b|user.?name|usuario|login|identifiant|dni|nif",
     re.I,
 )
+
+
+ORDINARY_KEY = re.compile(r"\b(postal|zip|promo|coupon|discount|ape|naf|commune|insee|client|customer|article|"
+                          r"product|produit|country|pays)\b", re.I)
+
+
+def key_words(key):
+    """sms_code, otpCode, card-number → 'sms code', 'otp Code', 'card number', so word boundaries apply."""
+    return re.sub(r"([a-z])([A-Z])", r"\1 \2", re.sub(r"[_\-.]+", " ", key))
+
+
+def secret_key(key):
+    """A value key that names a secret. A plain "code" qualified as ordinary (postal_code, code_ape) is not one."""
+    words = key_words(key)
+    if not SECRET.search(words):
+        return False
+    return not (ORDINARY_KEY.search(words) and not SECRET.search(re.sub(r"\bcode\b", "", words, flags=re.I)))
+# Stop before clicks that commit money, delete, reach other people, publish, sign up or grant access. Reversible
+# edits (save, update, add, archive, rename) and choices in a list go through: a user can undo them.
 IRREVERSIBLE = re.compile(
-    r"\b(pay\w*|paiement|pag(?:o|ar)|buy|acheter|compr(?:ar|a)|purchase|order|commander|commande|check.?out|book|booking|book now|"
-    r"r[ée]serv\w*|delete|supprimer|eliminar|borrar|remove|retirer|send|envoyer|enviar|submit|soumettre|transfer\w*|"
-    r"virement|publish|publier|post|confirm\w*|valider|accept\w*|aceptar|subscribe|s'abonner|suscrib\w*|"
-    r"unsubscribe|désinscri\w*|sign.?up|signer|firmar|inscri\w*|registr\w*|cancel\w*|annuler|save|enregistrer|guardar|update|modifier|allow|autoriser|permitir|authori[sz]e|"
-    r"i agree|agree|j'accepte|acepto|sell|vendre|vender|archive\w*|trash|corbeille|discard|apply now|postuler)\b",
+    r"\b(pay|pay now|payer|payez|payments?|paiement|pagar|pago|buy|acheter|achetez|comprar|purchase|order|commander|"
+    r"commandez|passer (?:la )?commande|finalizar compra|check.?out|complete (?:booking|purchase|order)|book|book now|"
+    r"reserve now|r[ée]server|r[ée]servez|reservar|delete|supprimer|supprimez|eliminar|borrar|remove|retirer|send|"
+    r"envoyer|envoyez|enviar|share|partager|partagez|invite|inviter|invitez|create account|cr[ée]er (?:un|mon) compte|"
+    r"register|inscription|"
+    r"submit|soumettre|transf[ée]r\w*|virement|publish|publier|post|confirm\w*|valider|accept\w*|aceptar|"
+    r"subscribe|s'abonner|suscrib\w*|unsubscribe|d[ée]sinscri\w*|sign.?up|s'inscrire|signer|firmar|r[ée]silier|"
+    r"cancel (?:my |the |your )?(?:subscription|order|booking|plan|account|membership)|"
+    r"annuler (?:mon |ma |la |le |l')?(?:abonnement|commande|r[ée]servation|compte)|allow|autoriser|permitir|authori[sz]e|i agree|agree|j'accepte|acepto|sell|vendre|vender|trash|"
+    r"corbeille|discard|apply now|postuler|d[ée]clarer|declare|se d[ée]connecter|d[ée]connexion|log ?out|sign ?out|"
+    r"cerrar sesi[oó]n|abmelden)\b",
     re.I,
 )
 STATE_DIR = Path.home() / ".cache" / "jevnav"
 JOURNAL_DIR = Path.home() / ".claude" / "jev-journal" / "nav"
 
 # Credential test on a live element: type, autocomplete, inputmode and length, not just its label.
-IS_CREDENTIAL = r"""e => { const w = [e.type, e.name, e.id, e.autocomplete, e.placeholder, e.getAttribute('aria-label'),
+# Shared by the field check and the page scan. A secret field (password, one-time code, card, IBAN) is always a
+# credential. An identity field (email, username, an unlabeled short numeric box) is one only in a sign-in or
+# verification context, so business forms (SIRET, code APE, code commune, a sharing email) are typed normally.
+CREDENTIAL_JS = r"""
+  // Names are split into words first (otp_code, smsCode, card-number), so word boundaries apply.
+  const split = s => (s || '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_\-.]+/g, ' ');
+  const words = e => split([e.type, e.name, e.id, e.autocomplete, e.placeholder, e.getAttribute('aria-label'),
     ...(e.getAttribute('aria-labelledby') || '').split(/\s+/).map(id => document.getElementById(id)?.textContent),
-    ...[...(e.labels || [])].map(l => l.textContent)].join(' ');
-  if (e.type === 'password' || /password|username|one-time-code|cc-/.test(e.autocomplete || '')) return true;
-  // Ordinary short fields: postal codes, dates, quantities, promo codes.
-  if (/postal|zip|promo|coupon|descuento|day|month|year|jour|mois|année|día|mes|año|quantit|qty|cantidad|amount|montant/i.test(w)) return false;
-  return e.type === 'email' || /email/.test(e.autocomplete || '') ||
-    (e.maxLength > 0 && e.maxLength <= 8 && /numeric|tel/.test(e.getAttribute('inputmode') || e.type)) ||
-    /passw|passcode|contraseña|mot de passe|one-time|otp|\bpin\b|user.?name|utilisateur|usuario|e-?mail|courriel|identifiant|login|\bdni\b|\bnif\b|customer.?(?:number|id)|\bcode\b|código|\bcodice\b|digits|chiffres/i.test(w) ||
-    !w.replace(e.type, '').trim(); }"""
-FIELD_IS_CREDENTIAL = "(node => { const e = window.__jevFast?.nodes.get(node); return !e || (" + IS_CREDENTIAL + ")(e); })"
+    ...[...(e.labels || [])].map(l => l.textContent)].join(' '));
+  const SECRET = /passw|passcode|contraseña|mot de passe|one.?time|\botp\b|\btotp\b|2fa|verification code|code de v[ée]rification|security code|code de s[ée]curit[ée]|\bpin\b|\bcvv\b|\bcvc\b|card number|num[ée]ro de carte|\biban\b/i;
+  const ORDINARY = /\b(postal|zip|promo|coupon|descuento|day|month|year|jour|mois|ann[ée]e|d[ií]a|mes|a[ñn]o|quantit\w*|qty|cantidad|amount|montant|siret|siren|ape|naf|commune|insee|tva|vat|search|recherche)\b/i;
+  const CODE = /\bcode\b|\bdigits\b|\bchiffres\b|\bc[óo]digo\b/i;
+  const IDENTITY = /user.?name|utilisateur|usuario|e-?mail|courriel|identifiant|login|\bdni\b|\bnif\b|customer.?(?:number|id)/i;
+  const SIGNIN_URL = /(log.?in|sign.?in|signin|connexion|auth|sso|account|verify|verification|2fa|mfa|identif)/i;
+  const SIGNIN_TEXT = /\b(sign.?in|log.?in|se connecter|connectez-vous|identifiez-vous|s'identifier|identification|iniciar sesi[oó]n|anmelden|verify|v[ée]rifi\w*|we sent a code|code (?:sent|envoy[ée])|sms|two.?factor|double authentification|one.?time)\b|(?<!d[ée])connexion/i;
+  const shown = e => e.checkVisibility({checkVisibilityCSS: true});
+  const context = e => {
+    if ([...document.querySelectorAll('input[type=password],input[autocomplete~="one-time-code"]')].some(shown)) return true;
+    if (SIGNIN_URL.test(location.hostname + location.pathname + location.hash) || SIGNIN_TEXT.test(document.title)) return true;
+    const scope = [e.form, e.closest('dialog,[role=dialog],main')].filter(Boolean);
+    const headings = [...document.querySelectorAll('h1,h2,legend,[role=heading]')].filter(shown).map(h => h.innerText).join(' ');
+    return SIGNIN_TEXT.test(headings.slice(0, 600)) ||
+      scope.some(s => SIGNIN_TEXT.test((s.innerText || '').slice(0, 1500)));
+  };
+  const isCredential = e => {
+    if (!e || e.isContentEditable || e.tagName === 'TEXTAREA' || e.tagName === 'SELECT') return false;
+    if (e.type === 'password' || /password|one-time-code|cc-/.test(e.autocomplete || '')) return true;
+    const w = words(e);
+    if (SECRET.test(w)) return true;
+    if (ORDINARY.test(w)) return false;
+    // A code field is a one-time code when its label says so (SMS, received, verification, activation) or the
+    // page is a sign-in/verification step; "Code client" or "Code article" on a business form is not.
+    if (CODE.test(w) && (/sms|re[çc]u|received|sent|envoy|v[ée]rif|s[ée]cur|auth|activation|confirm/i.test(w) || context(e)))
+      return true;
+    const identity = e.type === 'email' || /username|email/.test(e.autocomplete || '') || IDENTITY.test(w) ||
+      (e.maxLength > 0 && e.maxLength <= 8 && /numeric|tel/.test(e.getAttribute('inputmode') || e.type)) ||
+      !w.replace(e.type, '').trim();
+    return identity && context(e);
+  };
+"""
+FIELD_IS_CREDENTIAL = "(node => {" + CREDENTIAL_JS + " const e = window.__jevFast?.nodes.get(node); return !e || isCredential(e); })"
 # A flagged field stays pending while it is shown and empty; once the user or 1Password fills it, the run resumes.
-NODE_PENDING = "(node => { const e = window.__jevFast?.nodes.get(node); return !!e?.isConnected && e.checkVisibility() && !e.value; })"
+NODE_PENDING = ("(node => { const e = window.__jevFast?.nodes.get(node); "
+                "return !!e?.isConnected && e.checkVisibility() && !(e.value ?? e.innerText ?? '').trim(); })")
 
-# Visible credential fields in the viewport. A password or one-time-code field always counts; an email/username
-# field counts only inside a sign-in form or page, so newsletter boxes and site headers do not pause the run.
-CREDENTIALS = r"""(() => {
+# Visible credential fields in the viewport, in the first empty one's position (the pause clicks it).
+CREDENTIALS = r"""(() => {""" + CREDENTIAL_JS + r"""
   const vis = e => { const r = e.getBoundingClientRect();
     if (!(r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && e.checkVisibility({checkVisibilityCSS: true})))
       return false;
     // Frameworks such as Ionic draw a styled box over an opacity-0 native input: trust a hit test over opacity.
     const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
     return e.checkVisibility({checkOpacity: true}) || !!hit && (hit === e || e.contains(hit) || hit.contains(e)); };
-  const words = e => [e.type, e.name, e.id, e.autocomplete, e.placeholder, e.getAttribute('aria-label'),
-    ...[...(e.labels || [])].map(l => l.textContent)].join(' ');
-  const inputs = [...document.querySelectorAll('input')].filter(e => vis(e) &&
-    !['hidden', 'submit', 'button', 'checkbox', 'radio', 'search', 'file'].includes(e.type));
-  const secret = inputs.filter(e => e.type === 'password' || /one-time-code|current-password|new-password/.test(e.autocomplete) ||
-    /passw|mot de passe|contraseña|one-time|verification code|code de vérification/i.test(words(e)));
-  const SIGNIN = /sign.?in|log.?in|connexion|se connecter|identifi|iniciar sesi|acceder|entrar|anmelden/i;
-  const scope = e => { let a = e; for (let i = 0; i < 6 && a.parentElement; i++) a = a.parentElement;
-    return (e.form || a).innerText || ''; };
-  const user = inputs.filter(e => (e.type === 'email' || /username|email/.test(e.autocomplete) ||
-    /user.?name|utilisateur|e-?mail|courriel|identifiant|login|usuario|dni|nif|nie|documento|phone|téléphone|teléfono|mobile|móvil/i.test(words(e)) ||
-    (e.type === 'tel' || /\btel\b/.test(e.autocomplete))) &&
-    (secret.length || SIGNIN.test(document.title + ' ' + location.href) || SIGNIN.test(scope(e).slice(0, 2000))));
-  const fields = [...user, ...secret];
+  const fields = [...document.querySelectorAll('input')].filter(e => vis(e) &&
+    !['hidden', 'submit', 'button', 'checkbox', 'radio', 'search', 'file'].includes(e.type) && isCredential(e));
   const first = fields.find(e => !e.value) || fields[0];
   if (!first) return null;
   const r = first.getBoundingClientRect();
@@ -84,7 +127,9 @@ CREDENTIALS = r"""(() => {
 # as finished). Page-wide text is not enough: result pages keep lines such as "Loading prices." forever.
 LOADING = r"""(node => {
   const shown = e => e.checkVisibility({checkOpacity: true, checkVisibilityCSS: true});
-  if ([...document.querySelectorAll('[aria-busy="true"],progress,[role="progressbar"]')].some(shown)) return true;
+  // Step bars (a progressbar with a value) are not loading states; spinners and busy regions are.
+  if ([...document.querySelectorAll('[aria-busy="true"],progress:not([value]),[role="progressbar"]:not([aria-valuenow])')]
+      .some(shown)) return true;
   let a = window.__jevFast?.nodes.get(node);
   if (!a?.isConnected) return false;
   for (let i = 0; i < 3 && a.parentElement; i++) a = a.parentElement;
@@ -185,7 +230,14 @@ def wait_for_login(browser, wait_s, node, found):
     raise Stop("login_timeout", field_count=found["count"])
 
 
+ALARM = {"acting": False, "expired": False}
+
+
 def deadline_reached(_signum, _frame):
+    # Never cut an action in half (between press and release, or before it is recorded): finish it, then stop.
+    if ALARM["acting"]:
+        ALARM["expired"] = True
+        return
     raise Stop("in_progress", reason="deadline")
 
 
@@ -194,36 +246,48 @@ def run(args):
         signal.signal(signal.SIGALRM, deadline_reached)
         signal.alarm(int(args.deadline))
     values = json.loads(args.values) if args.values else {}
-    refused = [k for k in values if SECRET.search(k)]
+    refused = [k for k in values if secret_key(k)]
     if refused:
         raise Stop("refused", reason="values look like secrets; 1Password fills those", keys=refused)
     saved = {}
     if args.target:
         path = STATE_DIR / f"{args.target}.json"
         saved = json.loads(path.read_text()) if path.exists() else {}
-        if saved.get("goal") != args.goal:
+        if saved.get("goal") != args.goal or saved.get("status") == "done":
             saved = {}
     typed = saved.get("typed", [])
     started = time.perf_counter()
     chooser = value_chooser(values, typed)
     agent = Agent(args.url, args.goal, target=args.target, text_fn=chooser)
     state, browser = agent.state, agent.browser
+    raw_act = browser.act
+
+    def guarded_act(*a, **k):  # the deadline alarm may not cut a click or a keystroke in half
+        ALARM["acting"] = True
+        try:
+            return raw_act(*a, **k)
+        finally:
+            ALARM["acting"] = False
+
+    browser.act = guarded_act
     # Refuse to type when the click left focus on a credential field (e.g. a login modal opened).
-    browser.focus_guard = ("(() => { let a = document.activeElement; while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;"
+    browser.focus_guard = ("(() => {" + CREDENTIAL_JS + " let a = document.activeElement;"
+                           " while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;"
                            " if (a?.tagName === 'IFRAME') return false;"  # an embedded form we cannot inspect, often a login
-                           " return !a || a.tagName !== 'INPUT' || !(" + IS_CREDENTIAL + ")(a); })()")
+                           " return !a || a.tagName !== 'INPUT' || !isCredential(a); })()")
     state["history"] = saved.get("history", [])
     status, info, logins, empty_waits, done_waits, last_node = None, {}, 0, 0, 0, None
-    cycle = []
+    cycle, auto_scrolls, stale = [], 0, 0
     confirm = args.confirm
     try:
         while state["status"] not in {"done", "blocked"}:
-            if time.perf_counter() - started > args.budget:
+            if time.perf_counter() - started > args.budget or ALARM["expired"]:
                 status = "in_progress"
                 break
             try:
                 # Single-page apps render after "complete"; an empty page makes Jev answer BLOCKED.
-                if not state["page"]["text"].strip() and empty_waits < 20:
+                if not state["page"]["text"].strip() and empty_waits < 20 and \
+                        not any(a["kind"] in {"click", "fill", "select"} for a in state["page"]["actions"]):
                     empty_waits += 1
                     time.sleep(0.5)
                     state["page"] = browser.observe(screenshot=False)
@@ -234,10 +298,20 @@ def run(args):
                     continue
                 agent.command("predict")
                 decision = state["decision"]
-                if decision["choice"] == "DONE" and done_waits < 20 and browser.evaluate(f"{LOADING}({json.dumps(last_node)})"):
+                # Jev tends to answer BLOCKED when the target sits below the visible area. While the page or its
+                # panel can still scroll, look further before giving up.
+                if decision["choice"] == "BLOCKED" and auto_scrolls < 8 and \
+                        any(a["id"] == "scroll_down" for a in state["page"]["actions"]):
+                    auto_scrolls += 1
+                    decision["choice"] = "scroll_down"
+                    decision["probabilities"] = {**decision.get("probabilities", {}), "scroll_down": 0.0}
+                if decision["choice"] == "DONE" and done_waits < 2 and browser.evaluate(f"{LOADING}({json.dumps(last_node)})"):
+                    # Wait in the page (up to 3 s) for the busy state to clear, then ask once more.
                     done_waits += 1
+                    until = time.monotonic() + 3
+                    while time.monotonic() < until and browser.evaluate(f"{LOADING}({json.dumps(last_node)})"):
+                        time.sleep(0.2)
                     state["decision"], state["status"] = None, "ready"
-                    time.sleep(0.3)
                     state["page"] = browser.observe(screenshot=False)
                     continue
                 action = next((a for a in state["page"]["actions"] if a["id"] == decision["choice"]), None)
@@ -249,15 +323,30 @@ def run(args):
                     state["page"] = browser.observe(screenshot=False)
                     continue
                 label = (action or {}).get("label", "")
-                generic = label.strip().lower() in {"", "button", "link", "menuitem", "option", "tab"}
-                if action and action["kind"] in {"click", "select"} and (IRREVERSIBLE.search(label) or generic):
+                # Judge the control by its own name, not the row text appended for Jev. A control without an
+                # accessible name (only a test-id hint or its role) is unknown, unless it merely opens a menu.
+                own = (action or {}).get("base") or label
+                generic = own.strip().lower() in {"", "button", "link", "menuitem", "option", "tab"} or \
+                    ((action or {}).get("named") is False and not (action or {}).get("menu"))
+                if action and action["kind"] in {"click", "select"} and (IRREVERSIBLE.search(own) or generic):
                     if not (confirm and confirm.lower() in label.lower()):
                         raise Stop("confirm", action=label)
-                    confirm = None  # one irreversible click per --confirm
                 steps = len(state["history"])
-                agent.command("act", {"fingerprint": state["page"]["fingerprint"]})
+                try:
+                    agent.command("act", {"fingerprint": state["page"]["fingerprint"]})
+                except ValueError as e:
+                    if "No single option" in str(e):  # a long list with no option matching the supplied value
+                        raise Stop("need_value", field=label, reason=str(e)) from None
+                    raise
+                finally:
+                    # One irreversible click per --confirm, spent as soon as the click is recorded (even if the
+                    # page then navigates and the next read goes stale).
+                    if len(state["history"]) > steps and action and confirm and confirm.lower() in label.lower() and \
+                            (IRREVERSIBLE.search(own) or generic):
+                        confirm = None
                 if action and action["kind"] == "click":
                     last_node = action["node"]
+                stale = 0
                 helper = (state["history"][-1].get("text_helper") or "") if len(state["history"]) > steps else ""
                 if helper.startswith("values:"):  # count a value only once it was actually typed
                     typed.append(helper[len("values:"):])
@@ -269,6 +358,9 @@ def run(args):
                     if len(cycle) == 8 and len({c[0] for c in cycle}) <= 2 and len({c[1] for c in cycle}) <= 2:
                         raise Stop("blocked", reason="loop", actions=sorted({c[0] for c in cycle}))
             except StalePage:
+                stale += 1
+                if stale >= 6:  # the chosen target keeps failing its pre-input check (covered, moving, disabled)
+                    raise Stop("blocked", reason="unreachable") from None
                 state["decision"], state["status"] = None, "ready"
                 time.sleep(0.2)
                 try:
@@ -302,7 +394,8 @@ def run(args):
         result["target"] = None
     else:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
-        (STATE_DIR / f"{browser.target}.json").write_text(json.dumps({"goal": args.goal, "history": history, "typed": typed}))
+        (STATE_DIR / f"{browser.target}.json").write_text(
+            json.dumps({"goal": args.goal, "status": status, "history": history, "typed": typed}))
     return result
 
 

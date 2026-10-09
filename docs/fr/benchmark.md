@@ -54,6 +54,29 @@ Lecture :
 
 Claude ne paie plus qu'un appel d'outil par tâche, contre un tour complet par clic. Côté Jev : un appel par pas, plus un par champ texte. Nous n'avons pas mesuré le coût en euros. Les résultats bruts donnent le nombre d'actions par passage, d'où se déduit le nombre d'appels.
 
+## Cas difficiles
+
+Quatorze pages locales reproduisent les échecs relevés dans l'usage réel, du 6 au 8 octobre : menus de claude.ai, listes déroulantes de l'URSSAF, formulaires d'entreprise. Mesures du 9 octobre 2026, version du 8 octobre contre version actuelle (`examples/hard.py`).
+
+| Cas | Avant | Après |
+|---|---|---|
+| Menu « … » d'une ligne, bouton sans libellé | `confirm` | réussi, 1,5 s |
+| Liste native de 400 communes | `confirm` sur « Pays » | réussi, 2,2 s |
+| Liste de comptes dont l'option sort du cadre | 60 s puis abandon | réussi, 2,0 s |
+| Cartes de compte cliquables | `blocked` | réussi, 1,0 s |
+| Formulaire SIRET, code APE, code commune, mail | `refused` | réussi, 4,4 s |
+| Partage par adresse mail | 122 s de pause de connexion | réussi, 2,1 s |
+| Éditeur de texte riche | 122 s de pause de connexion | réussi, 1,8 s |
+| Boutons visibles au survol seulement | `blocked` | réussi, 1,2 s |
+| Liste qui défile dans un panneau | `blocked` | réussi, 1,5 s |
+| Fenêtre qui défile, liste des jours, « Enregistrer » | `confirm` | réussi, 3,3 s |
+| Enregistrer des instructions | `confirm` | réussi, 1,7 s |
+| Trois autres cas (dialogue, liste, assistant) | réussis | réussis |
+
+Total : 3 cas sur 14 avant, 14 sur 14 après. Sur le vrai claude.ai, ouvrir le menu d'une conversation échouait ; il prend maintenant 2 s.
+
+Les gardes se renforcent dans le même temps : sept pages vérifient qu'aucun identifiant n'est tapé (connexion en deux temps, code reçu par SMS, page de vérification) et que les champs ordinaires restent saisissables.
+
 ## Limites
 
 - **Échantillon.** Trois passages par tâche, une machine, un réseau. Les écarts de quelques dixièmes de seconde ne sont pas significatifs.

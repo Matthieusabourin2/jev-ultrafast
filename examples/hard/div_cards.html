@@ -1,0 +1,8 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Mes comptes</title>
+<style>body{font:15px sans-serif;margin:30px}.card{border:1px solid #aaa;border-radius:8px;padding:14px;margin:10px 0;width:360px;cursor:pointer}.card:hover{background:#f4f4ff}</style></head><body>
+<h1>Choisissez un compte</h1>
+<div class="card" data-k="emp"><strong>Compte employeur</strong><br>SIRET se terminant par 0012</div>
+<div class="card" data-k="ti"><strong>Compte travailleur indépendant</strong><br>Activité libérale</div>
+<div class="card" data-k="pe"><strong>Particulier employeur</strong><br>Cesu</div>
+<script>for(const c of document.querySelectorAll('.card'))c.addEventListener('click',()=>{window.__result=c.dataset.k;document.title='Fait';document.body.innerHTML='<h1>Espace '+c.querySelector('strong').textContent+'</h1>'});</script>
+</body></html>

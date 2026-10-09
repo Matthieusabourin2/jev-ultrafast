@@ -1,0 +1,11 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Connecteurs</title>
+<style>body{font:15px sans-serif;margin:30px}dialog{padding:20px}label{display:block;margin:8px 0}</style></head><body>
+<h1>Connecteurs</h1><p>Aucun connecteur personnalisé.</p>
+<button id="add" title="Ajouter un connecteur personnalisé"><svg width="16" height="16"><path d="M8 2v12M2 8h12" stroke="#000" stroke-width="2"/></svg></button>
+<dialog id="d"><h2>Ajouter un connecteur personnalisé</h2>
+<label>Nom <input id="name"></label><label>URL du serveur MCP distant <input id="url" type="url"></label>
+<button id="cancel">Annuler</button> <button id="ok">Ajouter</button></dialog>
+<script>
+add.onclick=()=>d.showModal(); cancel.onclick=()=>d.close();
+ok.onclick=()=>{const n=document.getElementById("name").value,u=document.getElementById("url").value;window.__result=n+"|"+u;d.close();document.querySelector("p").textContent="Connecteur ajouté : "+n;document.title='Fait'};
+</script></body></html>

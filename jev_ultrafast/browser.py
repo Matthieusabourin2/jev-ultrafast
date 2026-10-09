@@ -13,6 +13,18 @@ from browser_harness.helpers import cdp
 READ_STATE = Path(__file__).with_name("snapshot.js").read_text()
 MARKER = f"(() => {{ const state={READ_STATE}; return state?.marker ?? null; }})()"
 
+# Resolve once no structure, text or state attribute has changed for QUIET ms, or after CAP ms.
+SETTLE = """new Promise(resolve => {
+  const QUIET=75, CAP=400; let timer;
+  const finish=()=>{observer.disconnect(); clearTimeout(cap); resolve(true)};
+  const observer=new MutationObserver(()=>{clearTimeout(timer); timer=setTimeout(finish,QUIET)});
+  observer.observe(document,{subtree:true,childList:true,characterData:true,attributes:true,
+    attributeFilter:['aria-expanded','aria-selected','aria-checked','aria-hidden','aria-disabled','disabled','hidden','value']});
+  timer=setTimeout(finish,QUIET);
+  const cap=setTimeout(()=>{observer.disconnect(); clearTimeout(timer); resolve(false)},CAP);
+})"""
+
+
 class StalePage(ValueError):
     """A decision no longer refers to the observed page."""
 
@@ -77,24 +89,13 @@ class Browser:
             except RuntimeError:
                 pass
         # Pages keep rendering after load or input (hydration, suggestion lists). A decision made on an unsettled
-        # read fails the freshness check and costs a second model call, so wait until the read stops changing.
+        # read fails the freshness check and costs a second model call, so wait in the page until the DOM has been
+        # quiet for a short window (one round trip, capped).
+        try:
+            self.call("Runtime.evaluate", expression=SETTLE, awaitPromise=True, returnByValue=True)
+        except Exception:  # noqa: BLE001 - a frozen tab or a navigation: read the page as it is
+            pass
         page = self.read(screenshot)
-        marker, changed = page["marker"], False
-        deadline = time.monotonic() + 1.0
-        while time.monotonic() < deadline:
-            time.sleep(0.15)
-            try:
-                current = self.evaluate(MARKER)
-            except StalePage:
-                current = None
-            if current == marker:
-                break
-            marker, changed = current, True
-        if changed:
-            try:
-                page = self.read(screenshot)
-            except StalePage:
-                pass  # keep the earlier read: every action re-checks freshness before input
         return page
 
     def read(self, screenshot):
@@ -161,19 +162,40 @@ def browser_operation(request):
         action = request["action"]
         kind = action["kind"]
         if kind == "scroll":
-            call("Input.dispatchMouseEvent", type="mouseWheel", x=550, y=650, deltaX=0, deltaY=action["delta"])
+            call("Input.dispatchMouseEvent", type="mouseWheel", x=action.get("x", 550), y=action.get("y", 650),
+                 deltaX=0, deltaY=action["delta"])
         elif kind != "wait":
             if type(action["node"]) is not int:
                 raise ValueError("Invalid observed node")
+            # Hover the element first: rows reveal (and enable) their controls on hover, as for a hand.
+            spot = kind in {"click", "fill"} and evaluate("""(node => { const e=window.__jevFast?.nodes.get(node); if (!e?.isConnected) return null;
+              e.scrollIntoView({block:'nearest',inline:'nearest'}); const r=e.getBoundingClientRect();
+              return {x:r.x+r.width/2, y:r.y+r.height/2}; })(""" + json.dumps(action["node"]) + ")")
+            if spot:
+                call("Input.dispatchMouseEvent", type="mouseMoved", x=spot["x"], y=spot["y"])
+                time.sleep(0.05)  # let :hover styles apply before the hit test
             # Code-owned node IDs refer to actual observed elements, never model-generated selectors.
             target = evaluate("""(action => {
               const e=window.__jevFast?.nodes.get(action.node);
+              if (e?.isConnected) e.scrollIntoView({block:'nearest',inline:'nearest'});
               if (!e?.isConnected || e.matches(':disabled') || e.closest('[aria-disabled="true"],[inert]') ||
-                  !e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) return null;
+                  !e.checkVisibility({checkVisibilityCSS:true})) return null;
               if (action.kind==='fill' && (e.readOnly || e.getAttribute('aria-readonly')==='true')) return null;
               const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2;
               if (!r.width || !r.height || x<0 || y<0 || x>=innerWidth || y>=innerHeight) return null;
               if (!e.contains(document.elementFromPoint(x,y))) return null;
+              if (action.kind==='fill' && e.tagName==='SELECT') {
+                // Long native lists are filled like text: pick the one option whose label matches the value.
+                const norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+                const want=norm(action.text||''), live=[...e.options].filter(o=>!o.disabled && !o.closest('optgroup[disabled]'));
+                const pick=[o=>norm(o.label)===want, o=>norm(o.label).startsWith(want), o=>norm(o.label).includes(want)]
+                  .map(test=>live.filter(test)).find(found=>found.length);
+                if (!want || !pick || pick.length!==1) return {nomatch:true};
+                e.value=pick[0].value;
+                e.dispatchEvent(new Event('input',{bubbles:true}));
+                e.dispatchEvent(new Event('change',{bubbles:true}));
+                return {x,y,chosen:pick[0].label};
+              }
               if (action.kind==='select') {
                 if (e.tagName!=='SELECT' || ![...e.options].some(o=>o.value===action.value &&
                     !o.disabled && !o.closest('optgroup[disabled]'))) return null;
@@ -182,7 +204,11 @@ def browser_operation(request):
                 e.dispatchEvent(new Event('change',{bubbles:true}));
               }
               return {x,y};
-            })(""" + json.dumps(action) + ")")
+            })(""" + json.dumps({**action, "text": request.get("text")}) + ")")
+            if target and target.get("nomatch"):
+                raise ValueError(f"No single option of {action['label']!r} matches {request.get('text')!r}.")
+            if target and target.get("chosen"):
+                return {"executed": action["id"]}
             if target is None:
                 if kind == "select":
                     raise RuntimeError("Dropdown execution was not confirmed; inspect before retrying.")

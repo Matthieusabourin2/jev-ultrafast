@@ -1,0 +1,20 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Tâches planifiées</title>
+<style>body{font:15px sans-serif;margin:30px}dialog{width:460px;max-height:360px;overflow-y:auto;padding:20px}
+label{display:block;margin:12px 0 4px}textarea{width:400px;height:120px}.combo{border:1px solid #888;padding:6px;width:200px;cursor:pointer}
+ul[role=listbox]{list-style:none;margin:0;padding:0;border:1px solid #888;width:214px}li[role=option]{padding:5px;cursor:pointer}</style></head><body>
+<h1>Tâches planifiées</h1><button id="newtask">Nouvelle tâche</button>
+<dialog id="d"><h2>Nouvelle tâche</h2>
+<label for="n">Nom</label><input id="n" style="width:400px">
+<label for="p">Instructions</label><textarea id="p"></textarea>
+<label id="dl">Jour de la semaine</label><div id="day" class="combo" role="combobox" aria-labelledby="dl" aria-haspopup="listbox" tabindex="0">dimanche</div><div id="pop"></div>
+<label for="h">Heure</label><input id="h" type="text" value="09:00">
+<p>Paramètres avancés</p>
+<p><button id="cancel">Annuler</button> <button id="save">Enregistrer</button></p></dialog>
+<script>
+// A long form in a modal that scrolls on its own: the day list and the save button start below its edge (claude.ai).
+newtask.onclick=()=>d.showModal(); cancel.onclick=()=>d.close();
+const days=["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+day.onclick=()=>{if(pop.firstChild){pop.innerHTML='';return}const ul=document.createElement('ul');ul.setAttribute('role','listbox');
+ for(const x of days){const li=document.createElement('li');li.setAttribute('role','option');li.textContent=x;li.onclick=()=>{day.textContent=x;pop.innerHTML=''};ul.append(li)}pop.append(ul)};
+save.onclick=()=>{window.__result=[document.getElementById('n').value,day.textContent].join('|');d.close();document.title='Fait'};
+</script></body></html>

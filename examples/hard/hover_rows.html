@@ -1,0 +1,9 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Conversations</title>
+<style>body{font:15px sans-serif;margin:30px}li{display:flex;justify-content:space-between;width:380px;padding:8px;border-bottom:1px solid #ddd}
+li button{opacity:0;border:0;background:#eee}li:hover button{opacity:1}</style></head><body>
+<h1>Conversations récentes</h1><ul id="l"></ul>
+<script>
+for (const n of ["Plan de formation","Devis Artemis","Veille IA lundi","Notes réunion"]){const li=document.createElement('li');
+ li.innerHTML=`<span>${n}</span><button aria-label="Options de la conversation">⋯</button>`;
+ li.querySelector('button').onclick=()=>{window.__result='menu:'+n;document.title='Fait';document.body.insertAdjacentHTML('beforeend','<div role=menu><div role=menuitem>Renommer</div></div>')};l.append(li)}
+</script></body></html>

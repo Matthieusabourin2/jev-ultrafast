@@ -1,0 +1,20 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Changer de compte</title>
+<style>body{font:15px sans-serif;margin:30px}.combo{width:340px;border:1px solid #888;padding:8px;cursor:pointer}
+ul[role=listbox]{list-style:none;margin:0;padding:0;border:1px solid #888;width:356px;max-height:96px;overflow-y:auto}
+li[role=option]{padding:8px;cursor:pointer}li[role=option]:hover{background:#eef}</style></head><body>
+<header><a href="#">Mon compte</a> · <button id="logout">Se déconnecter</button></header>
+<h1>Changer de compte</h1>
+<label id="l">Sélectionner un compte *</label>
+<div id="combo" class="combo" role="combobox" aria-labelledby="l" aria-haspopup="listbox" aria-expanded="false" tabindex="0">Choisir…</div>
+<div id="pop"></div><p><button id="go">Accéder à l'espace</button></p>
+<script>
+// Options sit in a short scrolling list: the wanted one starts below its visible edge (URSSAF account switcher).
+const acc=["Employeur","Administration ou collectivité territoriale","Particulier employeur","Praticien et auxiliaire médical","Artiste-auteur","Travailleur indépendant"];
+combo.onclick=()=>{if(pop.firstChild){pop.innerHTML='';combo.setAttribute('aria-expanded','false');return}
+ const ul=document.createElement('ul');ul.setAttribute('role','listbox');
+ for(const a of acc){const li=document.createElement('li');li.setAttribute('role','option');li.textContent=a;
+  li.onclick=()=>{combo.textContent=a;pop.innerHTML='';combo.setAttribute('aria-expanded','false')};ul.append(li)}
+ pop.append(ul);combo.setAttribute('aria-expanded','true')};
+logout.onclick=()=>{window.__result='LOGGED OUT';document.body.innerHTML='<h1>Vous êtes déconnecté</h1>'};
+go.onclick=()=>{window.__result=combo.textContent;document.title='Fait'};
+</script></body></html>
