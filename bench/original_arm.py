@@ -18,7 +18,7 @@ p.add_argument("--text-chars", type=int, default=3000)
 args, _ = p.parse_known_args()
 # Ours first, for the value choice only; then the original's package under the same name.
 sys.path.insert(0, __file__.rsplit("/bench/", 1)[0])
-from jev_ultrafast.nav import Stop, value_chooser  # noqa: E402
+from jev_ultrafast.nav import Stop, commits as guard_commits, value_chooser  # noqa: E402
 
 for name in [m for m in sys.modules if m == "jev_ultrafast" or m.startswith("jev_ultrafast.")]:
     del sys.modules[name]
@@ -36,6 +36,28 @@ def field_text(context):
 
 
 original.field_text = field_text
+
+# The original has no stop before irreversible clicks. On a real account it gets jevnav's: a committing click
+# (delete, send, pay…) ends the run as "confirm", which counts as a failure, and nothing is clicked.
+_commits = None
+if "--guard" in sys.argv:
+    _commits = guard_commits
+
+
+class Committing(Exception):
+    pass
+
+
+_act = original.Browser.act
+
+
+def guarded(self, action, page, text=None):
+    if _commits and action["kind"] in {"click", "select"} and _commits(action.get("label", "")):
+        raise Committing(action.get("label", ""))
+    return _act(self, action, page, text)
+
+
+original.Browser.act = guarded
 started = time.perf_counter()
 agent = original.Agent(args.url, args.goal)
 status, error = "in_progress", None
@@ -44,6 +66,8 @@ try:
         if time.perf_counter() - started > args.budget:
             break
     status = agent.state["status"] if agent.state["status"] in {"done", "blocked"} else "in_progress"
+except Committing as e:
+    status, error = "confirm", f"stopped before the committing click {e}"
 except Exception as e:  # noqa: BLE001
     status, error = "error", f"{type(e).__name__}: {e}"
 s = agent.snapshot()

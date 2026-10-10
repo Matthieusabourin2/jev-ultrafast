@@ -110,26 +110,31 @@ Claude ne paie plus qu'un appel d'outil par tâche, contre un tour complet par c
 
 ## Cas difficiles
 
-Quatorze pages locales reproduisent les échecs relevés dans l'usage réel, du 6 au 8 octobre : menus de claude.ai, listes déroulantes de l'URSSAF, formulaires d'entreprise. Mesures du 9 octobre 2026, version du 8 octobre contre version actuelle (`examples/hard.py`).
+Quatorze pages locales reproduisent les échecs relevés dans l'usage réel, du 6 au 8 octobre : menus de claude.ai, listes déroulantes de l'URSSAF, formulaires d'entreprise (`examples/hard.py`, `--arm original` pour l'original). Deux passages par version, le 11 octobre 2026.
 
-| Cas | Avant | Après |
+| Cas | jevnav | Original |
 |---|---|---|
-| Menu « … » d'une ligne, bouton sans libellé | `confirm` | réussi, 1,5 s |
-| Liste native de 400 communes | `confirm` sur « Pays » | réussi, 2,2 s |
-| Liste de comptes dont l'option sort du cadre | 60 s puis abandon | réussi, 2,0 s |
-| Cartes de compte cliquables | `blocked` | réussi, 1,0 s |
-| Formulaire SIRET, code APE, code commune, mail | `refused` | réussi, 4,4 s |
-| Partage par adresse mail | 122 s de pause de connexion | réussi, 2,1 s |
-| Éditeur de texte riche | 122 s de pause de connexion | réussi, 1,8 s |
-| Boutons visibles au survol seulement | `blocked` | réussi, 1,2 s |
-| Liste qui défile dans un panneau | `blocked` | réussi, 1,5 s |
-| Fenêtre qui défile, liste des jours, « Enregistrer » | `confirm` | réussi, 3,3 s |
-| Enregistrer des instructions | `confirm` | réussi, 1,7 s |
-| Trois autres cas (dialogue, liste, assistant) | réussis | réussis |
+| Menu « … » d'une ligne, bouton sans libellé | 2/2, 1,2 s | 0/2, renomme un autre projet |
+| Connecteur ajouté par un bouton « + » et une fenêtre | 2/2, 2,0 s | 2/2, 2,3 s |
+| Liste native de 400 communes | 2/2, 1,5 s | 0/2, finit sans choisir |
+| Liste de comptes personnalisée | 2/2, 1,4 s | 2/2, 1,4 s |
+| Cartes de compte cliquables | 2/2, 0,7 s | 0/2, bloqué |
+| Formulaire SIRET, code APE, code commune, mail | 2/2, 2,3 s | 2/2, 2,9 s |
+| Partage par adresse mail | 2/2, 1,7 s | 2/2, 2,0 s |
+| Éditeur de texte riche | 2/2, 1,3 s | 2/2, 1,3 s |
+| Boutons visibles au survol seulement | 2/2, 0,8 s | 0/2, bloqué |
+| Liste qui défile dans un panneau | 2/2, 1,6 s | 0/2, bloqué |
+| Assistant en plusieurs étapes | 2/2, 1,6 s | 2/2, 1,6 s |
+| Liste de comptes coupée par le bas | 2/2, 1,3 s | 0/2, 32 s puis erreur |
+| Fenêtre qui défile, liste des jours, « Enregistrer » | 2/2, 2,2 s | 0/2, 32 s puis erreur |
+| Enregistrer des instructions | 2/2, 1,1 s | 2/2, 1,4 s |
+| **Total** | **28/28** | **14/28** |
 
-Total : 3 cas sur 14 avant, 14 sur 14 après. Sur le vrai claude.ai, ouvrir le menu d'une conversation échouait ; il prend maintenant 2 s.
+Sur les sept cas que les deux réussissent, jevnav gagne quatre fois ; les trois autres finissent à moins de 0,05 s d'écart.
 
-Les gardes se renforcent dans le même temps : sept pages vérifient qu'aucun identifiant n'est tapé (connexion en deux temps, code reçu par SMS, page de vérification) et que les champs ordinaires restent saisissables.
+Sur le vrai claude.ai, créer un projet, puis enregistrer ses instructions, en un seul appel : les deux versions réussissent, contrôlées en rouvrant le projet. L'original met 6,0 s en 7 actions, jevnav 6,5 s en 8, une attente en trop. Une seule paire : égalité. L'original a tourné avec l'arrêt de jevnav avant tout clic engageant, faute de garde-fou propre sur un compte réel.
+
+Les gardes tiennent en parallèle : sept pages vérifient qu'aucun identifiant n'est tapé (connexion en deux temps, code reçu par SMS, page de vérification) et que les champs ordinaires restent saisissables.
 
 ## Limites
 

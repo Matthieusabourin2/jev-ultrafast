@@ -2,6 +2,7 @@
 
 Each page stores what the user would see as done in window.__result. Run:
 PYTHONPATH=. uv run --env-file .env python examples/hard.py [case ...]
+Original jev-ultrafast on the same cases: add --arm original --source <checkout of the original>.
 """
 
 import functools
@@ -64,13 +65,21 @@ def main():
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     failures = 0
-    for case in sys.argv[1:] or CASES:
+    argv, arm, source = sys.argv[1:], "fork", None
+    if "--arm" in argv:
+        i = argv.index("--arm"); arm = argv[i + 1]; del argv[i:i + 2]
+    if "--source" in argv:
+        i = argv.index("--source"); source = argv[i + 1]; del argv[i:i + 2]
+    for case in argv or CASES:
         goal, values, expected, *confirm = CASES[case]
         url = f"http://127.0.0.1:{server.server_port}/{case}.html"
-        cmd = [sys.executable, "-m", "jev_ultrafast.nav", "--url", url, "--goal", goal, "--budget", "60", "--text-chars", "0"]
+        cmd = [sys.executable, "-m", "jev_ultrafast.nav"] if arm == "fork" else \
+            ["uv", "run", "--quiet", "--project", source, "python",
+             str(Path(__file__).parents[1] / "bench" / "original_arm.py"), "--source", source]
+        cmd += ["--url", url, "--goal", goal, "--budget", "60", "--text-chars", "0"]
         if values:
             cmd += ["--values", json.dumps(values)]
-        if confirm:  # the user already agreed to this one irreversible click
+        if confirm and arm == "fork":  # the user already agreed to this one irreversible click
             cmd += ["--confirm", confirm[0]]
         result = json.loads(subprocess.run(cmd, capture_output=True, text=True).stdout)
         got = None
@@ -79,7 +88,7 @@ def main():
             cdp("Target.closeTarget", targetId=result["target"])
         ok = got == expected
         failures += not ok
-        print(json.dumps({"case": case, "ok": ok, "status": result["status"], "got": got, "s": result.get("elapsed_s"),
+        print(json.dumps({"arm": arm, "case": case, "ok": ok, "status": result["status"], "got": got, "s": result.get("elapsed_s"),
                           "actions": result.get("actions"), **{k: result[k] for k in ("action", "field", "reason", "error")
                                                                  if k in result}}, ensure_ascii=False), flush=True)
     server.shutdown()
