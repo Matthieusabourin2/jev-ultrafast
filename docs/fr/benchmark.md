@@ -132,7 +132,7 @@ Quatorze pages locales reproduisent les échecs relevés dans l'usage réel, du 
 
 Sur les sept cas que les deux réussissent, jevnav gagne quatre fois ; les trois autres finissent à moins de 0,05 s d'écart.
 
-Sur le vrai claude.ai, créer un projet, puis enregistrer ses instructions, en un seul appel : les deux versions réussissent, contrôlées en rouvrant le projet. L'original met 6,0 s en 7 actions, jevnav 6,5 s en 8, une attente en trop. Une seule paire : égalité. L'original a tourné avec l'arrêt de jevnav avant tout clic engageant, faute de garde-fou propre sur un compte réel.
+Sur le vrai claude.ai, créer un projet, puis enregistrer ses instructions, en un seul appel, contrôlé en rouvrant le projet. Quatre paires en alternance, les 10 et 11 octobre 2026 : jevnav réussit 4 fois sur 4 (6,5, 9,5, 8,1 et 7,2 s), l'original 2 fois sur 4 (6,0 et 7,0 s). Les deux autres fois, l'original crée le projet puis s'arrête sans écrire les instructions. Quand il réussit, l'original va plus vite d'environ une seconde : jevnav dépense un appel Jev à attendre le chargement du projet. L'original a tourné avec l'arrêt de jevnav avant tout clic engageant, faute de garde-fou propre sur un compte réel.
 
 Les gardes tiennent en parallèle : sept pages vérifient qu'aucun identifiant n'est tapé (connexion en deux temps, code reçu par SMS, page de vérification) et que les champs ordinaires restent saisissables.
 
