@@ -3,7 +3,7 @@
 > Fork de [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast). Le README d'origine, en anglais, reste disponible en bas de page.
 > Documentation : [installation](docs/fr/installation.md) · [benchmark](docs/fr/benchmark.md).
 
-Google Flights rempli en 9 secondes, vérifié trois fois sur trois.
+Google Flights en 6,8 secondes, contre 7,4 pour l'original sur la même machine. Et presque deux fois plus de sites réels réussis.
 
 ## Ce que c'est
 
@@ -28,7 +28,7 @@ appelant ◀── une ligne JSON : status, actions, url, title, text, target
 - **Reprise possible.** L'onglet reste ouvert ; `--target` repart de là où l'appel précédent s'est arrêté.
 - **Deux branchements.** Une commande Bash pour Claude Code, et un serveur MCP (`jev_ultrafast/mcp_server.py`) pour le chat de Claude Desktop.
 
-Mesures du 4 octobre 2026, trois passages par tâche, chacun vérifié sur la page finale : recherche Wikipédia 3,7 s, recherche de vol aller simple sur Google Flights 9,1 s, bouton asynchrone 3,9 s, les 12 passages validés. Sur la plus simple de ces tâches, Claude seul met 27 à 42 s. Détails et limites : [benchmark](docs/fr/benchmark.md).
+Duel du 10 octobre 2026 contre jev-ultrafast d'origine, même Mac, même Comet, contrôle indépendant de la page finale. Google Flights : 6,84 s de médiane contre 7,42 s, 13 appels Jev contre 17 à 23, cinq paires gagnées sur cinq. Quinze sites réels, deux passages : 24 réussites sur 30 contre 13. Sur la plus simple des tâches, Claude seul met 27 à 42 s. Détails et limites : [benchmark](docs/fr/benchmark.md).
 
 ## Comment l'utiliser
 
@@ -47,7 +47,7 @@ uv run --env-file .env jevnav --url https://en.wikipedia.org/wiki/Main_Page \
   --goal "Search Wikipedia for Alan Turing and open his article" --values '{"query":"Alan Turing"}' --close
 ```
 
-Statuts : `done`, `need_value`, `confirm` (relancer avec `--confirm "<libellé>"` une fois l'accord de l'utilisateur obtenu), `login_timeout`, `in_progress`, `refused`, `blocked`, `error`. Le pas-à-pas complet, la règle pour Claude Code, le branchement MCP de Claude Desktop et le dépannage sont dans le [guide d'installation](docs/fr/installation.md).
+Statuts : `done`, `need_value`, `confirm` (relancer avec `--confirm "<libellé>"` une fois l'accord de l'utilisateur obtenu), `login_timeout`, `allow_needed` (navigateur fermé ou clic **Allow** en attente), `in_progress`, `refused`, `blocked`, `error`. Le pas-à-pas complet, la règle pour Claude Code, le branchement MCP de Claude Desktop et le dépannage sont dans le [guide d'installation](docs/fr/installation.md).
 
 Vérifications : `uv run pytest -q tests` (tests unitaires), `uv run --env-file .env python examples/guards.py` (gardes d'identifiants dans le vrai navigateur), `uv run --env-file .env python bench/run.py --runs 3` (banc de performance).
 

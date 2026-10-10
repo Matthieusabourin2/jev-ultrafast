@@ -79,6 +79,7 @@ La commande rend une seule ligne JSON. Sur ce test, attendez `"status": "done"` 
 | `need_value` | un champ attend une valeur absente de `--values` | ajouter la valeur pour `field`, relancer avec `--target` |
 | `confirm` | le prochain clic engage : payer, envoyer, partager, supprimer, réserver, valider, se déconnecter… Enregistrer, modifier ou archiver passent sans confirmation | demander à l'utilisateur, relancer avec `--target` et `--confirm "<libellé>"` |
 | `login_timeout` | un formulaire de connexion attend toujours | l'utilisateur remplit avec 1Password, puis relance avec `--target` |
+| `allow_needed` | le navigateur est fermé, ou il attend le clic **Allow** du débogage (45 s au plus) | ouvrir le navigateur, cliquer **Allow**, relancer à l'identique |
 | `in_progress` | le budget de temps est écoulé | relancer avec `--target` |
 | `refused` | une clé de `--values` ressemble à un secret | retirer la clé ; la connexion passe par 1Password |
 | `blocked` | Jev ne trouve plus d'action utile ; `reason` vaut `loop` s'il tournait en rond, `unreachable` si la cible restait couverte | reformuler l'objectif ou changer d'approche |
@@ -105,7 +106,8 @@ Ajoutez cette règle dans `~/.claude/CLAUDE.md` pour que chaque session Claude C
 ## Navigation web : jevnav d'abord
 Toute tâche dans mon navigateur passe par `jevnav` (Bash) : `jevnav --url <url> --goal "<objectif>" --values '{"champ":"valeur"}'`.
 Statuts : need_value → ajouter la valeur et relancer avec --target ; confirm → me demander, puis --confirm ;
-login_timeout → je remplis avec 1Password, puis relancer avec --target. Jamais d'identifiant dans --values.
+login_timeout → je remplis avec 1Password, puis relancer avec --target ; allow_needed → me demander de cliquer Allow.
+Un appel = l'objectif entier, avec toutes ses valeurs. Jamais d'identifiant dans --values.
 ```
 
 Pour interdire le navigateur intégré de Claude Desktop, ajoutez la règle de refus dans `~/.claude/settings.json` :

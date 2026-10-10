@@ -77,7 +77,13 @@ class Agent:
                 raise ValueError("This run has stopped. Start a fresh demo.")
             if len(state["decisions"]) >= MAX_STEPS * 2:
                 raise ValueError("Reached the demo's model-call budget")
-            state["decision"] = choose(state["page"], state["goal"], state["history"])
+            # An "Open X" just clicked on a field is not offered again until something else happens: the model then
+            # fills the field or picks in what opened, instead of clicking it again and again.
+            view = state["page"]
+            if getattr(self, "opened", None):
+                view = {**view, "actions": [a for a in view["actions"]
+                                            if not (a.get("node") in self.opened and a["label"].startswith("Open "))]}
+            state["decision"] = choose(view, state["goal"], state["history"])
             state["decisions"].append(
                 {
                     **state["decision"],
@@ -107,7 +113,7 @@ class Agent:
                 raise ValueError(f"Stopped at the {MAX_STEPS}-action demo budget")
             text, helper = None, None
             if action["kind"] == "fill":
-                if not state["browser"].fresh(page):
+                if not state["browser"].fresh(page, action):
                     raise StalePage("Page changed before text generation. Choose again.")
                 context = field_context(state["goal"], action, page, state["history"])
                 if self.pending_text and self.pending_text[0] == context:
@@ -118,6 +124,7 @@ class Agent:
                     state["text_calls"].append({**helper, "field": action["label"], "value": text})
             # Browser.act checks freshness immediately before input, including after text generation.
             state["browser"].act(action, page, text=text)
+            self.opened = {action["node"]} if action["label"].startswith("Open ") else set()
             self.pending_text = None
             state["elapsed_ms"] = round((time.perf_counter() - state["started_at"]) * 1000)
             # Record execution before observing. A stale post-action observation must not erase the action.

@@ -10,6 +10,7 @@ import json
 import os
 import re
 import signal
+import unicodedata
 import subprocess
 import sys
 import time
@@ -17,7 +18,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .agent import Agent
-from .browser import StalePage
+from .browser import AllowNeeded, StalePage
 from .model import post_json, validate_choice
 
 SECRET = re.compile(
@@ -58,6 +59,107 @@ IRREVERSIBLE = re.compile(
     r"cerrar sesi[oó]n|abmelden)\b",
     re.I,
 )
+# Two harmless names that contain a committing word: running a search ("Soumettre la recherche") and refusing
+# cookies ("Continuer sans accepter"). A refusal tied to a paid subscription (pay-or-ok walls) still stops.
+SEARCH_SUBMIT = re.compile(r"(submit|soumettre|valider|lancer|launch)\s+(the |la |ma |une |your )?(search|recherche)\s*",
+                           re.I)
+DECLINE = re.compile(r"(tout )?refuser( tout| les cookies| et fermer)?|continuer sans accepter|je refuse|non,? merci|"
+                     r"reject( all)?( cookies)?|decline( all)?|deny( all)?|(use )?(only )?(necessary|essential)"
+                     r"( cookies)?( only)?|(cookies )?n[ée]cessaires? uniquement|uniquement (les cookies )?n[ée]cessaires|"
+                     r"rechazar( todo| todas)?|(alle )?ablehnen", re.I)
+PAYWALL = re.compile(r"abonn|subscri|\bpa(y|ie|yer)|€|\$", re.I)
+# A consent banner's accept button, and the words that mark the banner holding it.
+CONSENT_ACCEPT = re.compile(r"\b(accept\w*|accepter|j'accepte|tout accepter|agree|allow all|autoriser|aceptar|"
+                            r"akzeptieren)\b", re.I)
+CONSENT_CONTEXT = re.compile(r"cookie|consent|traceurs|vos donn[ée]es|nos partenaires|privacy|confidentialit", re.I)
+# The text of the smallest element holding both controls, if it is banner-sized: the refusal must sit on the same
+# banner as the accept button, never elsewhere on the page (an invitation's "Decline" is not a cookie refusal).
+SHARED_BOX = """((a, b) => {
+  const x=window.__jevFast?.nodes.get(a), y=window.__jevFast?.nodes.get(b); if (!x || !y) return null;
+  let box=x.parentElement; while (box && !box.contains(y)) box=box.parentElement;
+  const text=box?.innerText||''; return box && text.length<4000 ? text : null;
+})"""
+
+
+def commits(own):
+    """Whether a control's own name commits something the user must approve (pay, send, delete, accept…)."""
+    head = own.split(":")[0].strip().rstrip(".!")
+    if (SEARCH_SUBMIT.fullmatch(head) or DECLINE.fullmatch(head)) and not PAYWALL.search(own):
+        return False
+    return bool(IRREVERSIBLE.search(own))
+
+
+def decline_instead(action, page, banner, confirm=None):
+    """On a consent banner, the refusal next to the accept button Jev chose (privacy first), if there is one.
+
+    `banner(a, b)` returns the text of the box holding both controls, or None when they are not on one banner.
+    An accept the caller confirmed by name is kept."""
+    if not action or action["kind"] != "click":
+        return None
+    own = action.get("base") or action["label"]
+    if not CONSENT_ACCEPT.search(own) or (confirm and confirm.lower() in action["label"].lower()):
+        return None
+    for a in page["actions"]:
+        name = a.get("base") or a["label"]
+        if a["kind"] == "click" and DECLINE.fullmatch(name.split(":")[0].strip().rstrip(".!")) and \
+                not PAYWALL.search(name):
+            text = banner(action["node"], a["node"])
+            if text is not None and CONSENT_CONTEXT.search(own + " " + text):
+                return a
+    return None
+
+
+# A control that closes a picker ("Done" under a calendar), and one that launches a search.
+CLOSES_PICKER = re.compile(r"(done|termin[ée]|ok|apply|appliquer|listo|aplicar)\b", re.I)
+LAUNCHES_SEARCH = re.compile(r"(search|rechercher|recherche|buscar|suchen|trouver)\b", re.I)
+
+
+def picker_closed(history):
+    """The last action (waits aside) closed a picker, after a value was typed."""
+    while history and history[-1].get("kind") == "wait":
+        history = history[:-1]
+    return bool(history) and bool(CLOSES_PICKER.match(history[-1].get("action", ""))) and \
+        any(h.get("kind") == "fill" for h in history)
+
+
+def premature_done(history, values, typed, page, nudged):
+    """Why a DONE is too early, if it is: a supplied value was never typed (the site remembered an earlier search
+    and shows it), or a picker closed after a value was entered while the search it feeds was never launched."""
+    # Only before any action: later, an untyped value is usually one that was clicked (a calendar day).
+    if not history and [k for k in values if k not in typed] and "values" not in nudged:
+        return "values", None
+    while history and history[-1].get("kind") == "wait":  # waits after the picker closed change nothing
+        history = history[:-1]
+    if history and "search" not in nudged and CLOSES_PICKER.match(history[-1].get("action", "")):
+        last_fill = max((i for i, h in enumerate(history) if h.get("kind") == "fill"), default=-1)
+        if last_fill < 0:
+            return None, None
+        # The search is stale when something was chosen after the last search (a date picked in the picker that a
+        # first "Search" opened), or when no search followed the last typed value.
+        searches = [i for i, h in enumerate(history[:-1]) if LAUNCHES_SEARCH.match(h.get("action", ""))]
+        launched = bool(searches) and searches[-1] > last_fill and searches[-1] == len(history) - 2
+        search = next((a for a in page["actions"] if a["kind"] == "click" and
+                       LAUNCHES_SEARCH.fullmatch((a.get("base") or a["label"]).strip())), None)
+        if search and not launched:
+            return "search", search
+    return None, None
+
+
+# A field that announces a list of suggestions; with `shown`, whether that list now shows options.
+SUGGESTS = """((node, shown) => {
+  const e=window.__jevFast?.nodes.get(node); if (!e?.isConnected) return false;
+  if (!shown) return /list|both|inline/.test(e.getAttribute('aria-autocomplete')||'') ||
+    /listbox|true/.test(e.getAttribute('aria-haspopup')||'');
+  return [...document.querySelectorAll('[role="option"]')].some(o => o.checkVisibility({checkOpacity:true}));
+})"""
+# The observed ids of the options inside the list a field controls (aria-controls / aria-owns), or null.
+OWNED = """(node => {
+  const c=window.__jevFast, e=c?.nodes.get(node); if (!e?.isConnected) return false;  // the field is gone
+  const ids=(e.getAttribute('aria-controls')||'')+' '+(e.getAttribute('aria-owns')||'');
+  const lists=ids.split(/\\s+/).filter(Boolean).map(id=>document.getElementById(id)).filter(Boolean);
+  if (!lists.length) return null;
+  return lists.flatMap(l=>[...l.querySelectorAll('[role="option"]')]).map(o=>c.ids.get(o)).filter(Boolean);
+})"""
 STATE_DIR = Path.home() / ".cache" / "jevnav"
 JOURNAL_DIR = Path.home() / ".claude" / "jev-journal" / "nav"
 
@@ -127,12 +229,13 @@ CREDENTIALS = r"""(() => {""" + CREDENTIAL_JS + r"""
 # as finished). Page-wide text is not enough: result pages keep lines such as "Loading prices." forever.
 LOADING = r"""(node => {
   const shown = e => e.checkVisibility({checkOpacity: true, checkVisibilityCSS: true});
-  // Step bars (a progressbar with a value) are not loading states; spinners and busy regions are.
-  if ([...document.querySelectorAll('[aria-busy="true"],progress:not([value]),[role="progressbar"]:not([aria-valuenow])')]
-      .some(shown)) return true;
   let a = window.__jevFast?.nodes.get(node);
   if (!a?.isConnected) return false;
   for (let i = 0; i < 3 && a.parentElement; i++) a = a.parentElement;
+  // Only next to the control just used: result pages keep page-wide spinners and "Loading prices." lines forever.
+  // Step bars (a progressbar with a value) are not loading states.
+  if ([...a.querySelectorAll('[aria-busy="true"],progress:not([value]),[role="progressbar"]:not([aria-valuenow])')]
+      .some(shown) || a.closest('[aria-busy="true"]')) return true;
   return /wait for it|loading|please wait|chargement|veuillez patienter|cargando|espere/i.test(a.innerText || '');
 })"""
 
@@ -148,6 +251,52 @@ class Stop(Exception):
         self.status, self.info = status, info
 
 
+STOPWORDS = {"des", "les", "aux", "the", "and", "for", "your", "votre", "vos", "pour", "avec", "with", "del", "los",
+             "las", "une", "est", "what", "quel", "quelle", "where"}
+
+
+def fold(text):
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower().strip()
+
+
+def names(option):
+    """What a suggestion names: its first line, or its name before the first comma ("Zürich, Switzerland")."""
+    return fold((option.get("first") or option.get("base") or option["label"]).split(",")[0])
+
+
+def exact_suggestion(typed, page, owned=None):
+    """The one suggestion naming exactly the typed text (accents and case aside)."""
+    if not typed or owned is False:
+        return None
+    want = fold(typed)
+    found = [a for a in page["actions"] if a["kind"] == "click" and a.get("role") == "option" and
+             (owned is None or a["node"] in owned) and names(a) == want]
+    # Several suggestions naming it ("Paris, France", "Paris, Texas"): the goal decides, so Jev does.
+    return found[0] if len({a["node"] for a in found}) == 1 else None
+
+
+def suggestion_for(typed, action, page, owned=None, exact=False):
+    """Right after typing into a field with suggestions, the suggestion Jev skipped when it moved on.
+
+    Many sites (Doctolib, Maps, booking engines) ignore free text until a suggestion is chosen. When Jev's next
+    choice leaves the field without choosing, take the suggestion equal to the typed text, else the first that
+    starts with it, else the first holding it as a word. `owned` limits the choice to the field's own list;
+    `exact` (Jev chose to launch a search) keeps only an equal one, so a site search runs on what was typed."""
+    if not typed or owned is False or (action and action.get("role") == "option"):
+        return None
+    want = fold(typed)
+    options = [a for a in page["actions"] if a["kind"] == "click" and a.get("role") == "option" and
+               (owned is None or a["node"] in owned)]
+    found = next((a for a in options if names(a) == want or fold(a.get("base") or a["label"]) == want), None)
+    if found or exact:
+        return found
+    for test in (lambda t: t.startswith(want), lambda t: re.search(r"\b" + re.escape(want), t)):
+        found = next((a for a in options if test(fold(a.get("base") or a["label"]))), None)
+        if found:
+            return found
+    return None
+
+
 def value_chooser(values, typed):
     """Jev picks a key from the caller's values; a field without a matching value stops the run."""
 
@@ -155,6 +304,14 @@ def value_chooser(values, typed):
         field = context["field"]["label"]
         if not values:
             raise Stop("need_value", field=field)
+        # When exactly one key names the field ("from" in "Where from?", "departure" in "Departure"), take it
+        # without a model call; ambiguous or indirect labels still go to Jev.
+        label_words = set(re.findall(r"\w+", fold(field)))
+        meaningful = {w for w in label_words if len(w) > 2 and w not in STOPWORDS}
+        named = [k for k in values if (lambda kw: kw <= label_words or (meaningful and meaningful <= kw))(
+            set(re.findall(r"\w+", fold(key_words(k)))))]
+        if len(named) == 1:
+            return values[named[0]], {"model": f"values:{named[0]}", "latency_ms": 0, "usage": {}}
         criteria = {k: f"{k}: {v}" for k, v in values.items()}
         criteria["NONE"] = "None of the supplied values belongs in this field."
         started = time.perf_counter()
@@ -270,6 +427,7 @@ def run(args):
             ALARM["acting"] = False
 
     browser.act = guarded_act
+    browser.commits = commits  # fresh() refuses a control whose name grew into a committing one
     # Refuse to type when the click left focus on a credential field (e.g. a login modal opened).
     browser.focus_guard = ("(() => {" + CREDENTIAL_JS + " let a = document.activeElement;"
                            " while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;"
@@ -277,7 +435,8 @@ def run(args):
                            " return !a || a.tagName !== 'INPUT' || !isCredential(a); })()")
     state["history"] = saved.get("history", [])
     status, info, logins, empty_waits, done_waits, last_node = None, {}, 0, 0, 0, None
-    cycle, auto_scrolls, stale = [], 0, 0
+    goal, nudged = state["goal"], set()
+    cycle, auto_scrolls, stale, unsure_waits, just_typed, replays = [], 0, 0, 0, None, {}
     confirm = args.confirm
     try:
         while state["status"] not in {"done", "blocked"}:
@@ -296,8 +455,33 @@ def run(args):
                     logins += 1
                     state["page"] = browser.observe(screenshot=False)
                     continue
-                agent.command("predict")
+                # Suggestions fetched over the network land after the read that follows typing (Doctolib: 0.3 s):
+                # on a field that announces a list, wait for them (0.8 s at most) before deciding.
+                if just_typed and not just_typed[2] and \
+                        not any(a.get("role") == "option" for a in state["page"]["actions"]) and \
+                        browser.evaluate(f"{SUGGESTS}({just_typed[0]})"):
+                    until = time.monotonic() + 0.8
+                    while time.monotonic() < until and not browser.evaluate(f"{SUGGESTS}({just_typed[0]}, true)"):
+                        time.sleep(0.1)
+                    state["page"] = browser.observe(screenshot=False)
+                # Typed "Zurich" and the list offers "Zürich, Switzerland": the suggestion naming exactly what was
+                # typed (before its comma) needs no model call. Anything less certain goes to Jev.
+                pick = just_typed and not just_typed[2] and exact_suggestion(
+                    just_typed[1], state["page"], browser.evaluate(f"{OWNED}({just_typed[0]})"))
+                if pick:
+                    state["decision"], state["status"] = {
+                        "choice": pick["id"], "operation": "CLICK", "target": None, "confidence": 1.0,
+                        "probabilities": {pick["id"]: 1.0}, "latency_ms": 0, "usage": {}}, "predicted"
+                else:
+                    agent.command("predict")
                 decision = state["decision"]
+                # An unsure BLOCKED right after an action is usually a page still working (a dialog submitting, a
+                # list loading): wait and look again before giving up.
+                if decision["choice"] == "BLOCKED" and decision.get("confidence", 1) < 0.6 and unsure_waits < 6:
+                    unsure_waits += 1
+                    time.sleep(0.4)
+                    decision["choice"] = "wait"
+                    decision["probabilities"] = {**decision.get("probabilities", {}), "wait": 0.0}
                 # Jev tends to answer BLOCKED when the target sits below the visible area. While the page or its
                 # panel can still scroll, look further before giving up.
                 if decision["choice"] == "BLOCKED" and auto_scrolls < 8 and \
@@ -305,6 +489,41 @@ def run(args):
                     auto_scrolls += 1
                     decision["choice"] = "scroll_down"
                     decision["probabilities"] = {**decision.get("probabilities", {}), "scroll_down": 0.0}
+                # A DONE, or a wait, right after a picker closed (its "Done" reads like a search) is premature
+                # while the search it feeds was never launched.
+                if decision["choice"] in {"DONE", "wait"}:
+                    why, search = premature_done(state["history"], values, typed, state["page"], nudged)
+                    # Right after a picker closed, its search button may still be hidden by the closing dialog:
+                    # look again for up to 0.6 s instead of paying a model call for a wait.
+                    if why is None and not {"search", "look"} & nudged and picker_closed(state["history"]):
+                        nudged.add("look")
+                        until = time.monotonic() + 0.6
+                        while why is None and time.monotonic() < until:
+                            time.sleep(0.1)
+                            state["page"] = browser.observe(screenshot=False)
+                            why, search = premature_done(state["history"], values, typed, state["page"], nudged)
+                        if why is None:  # the page changed under the decision: ask again on what is there now
+                            state["decision"], state["status"] = None, "ready"
+                            continue
+                    # A DONE right after launching a search judges the page before the results: wait for the
+                    # update in the page once, then ask again.
+                    if why is None and decision["choice"] == "DONE" and "results" not in nudged and \
+                            state["history"] and LAUNCHES_SEARCH.match(state["history"][-1].get("action", "")):
+                        nudged.add("results")
+                        browser.act({"id": "wait", "kind": "wait"}, state["page"])
+                        state["page"] = browser.observe(screenshot=False)
+                        state["decision"], state["status"] = None, "ready"
+                        continue
+                    if why == "values" and decision["choice"] == "DONE":  # say so in the goal Jev reads, and ask again (once: a date may be clicked)
+                        nudged.add(why)
+                        state["goal"] = goal + " Not entered yet in this run: " + \
+                            ", ".join(f"{k} {values[k]}" for k in values if k not in typed) + "."
+                        state["decision"], state["status"] = None, "ready"
+                        continue
+                    if why == "search":  # launch the search the closed picker was filling
+                        nudged.add(why)
+                        decision["choice"] = search["id"]
+                        decision["probabilities"] = {**decision.get("probabilities", {}), search["id"]: 0.0}
                 if decision["choice"] == "DONE" and done_waits < 2 and browser.evaluate(f"{LOADING}({json.dumps(last_node)})"):
                     # Wait in the page (up to 3 s) for the busy state to clear, then ask once more.
                     done_waits += 1
@@ -315,6 +534,35 @@ def run(args):
                     state["page"] = browser.observe(screenshot=False)
                     continue
                 action = next((a for a in state["page"]["actions"] if a["id"] == decision["choice"]), None)
+                swap = decline_instead(action, state["page"],
+                                       lambda a, b: browser.evaluate(f"{SHARED_BOX}({a}, {b})"), confirm)
+                carry = None
+                if just_typed and not swap and decision["choice"] not in {"DONE", "BLOCKED", "wait"} and \
+                        (action or {}).get("role") != "option":
+                    node, text, relaxed = just_typed
+                    # Launching a search right after typing searches what was typed: only an equal suggestion is
+                    # taken. If the search then leaves the page where it was, the site wanted a suggestion.
+                    exact = not relaxed and bool(action and action["kind"] == "click" and
+                                                 LAUNCHES_SEARCH.fullmatch((action.get("base") or action["label"]).strip()))
+                    swap = suggestion_for(text, action, state["page"], browser.evaluate(f"{OWNED}({node})"), exact)
+                    if exact and not swap:
+                        carry = (node, text, state["page"]["url"])
+                    # Suggestions fetched over the network can land after the page was read: wait for them (1.5 s
+                    # at most, only on a field that announces a list), then choose on the page that has them.
+                    elif not swap and browser.evaluate(f"{SUGGESTS}({node})"):
+                        until = time.monotonic() + 1.5
+                        while time.monotonic() < until and not browser.evaluate(f"{SUGGESTS}({node}, true)"):
+                            time.sleep(0.1)
+                        state["page"] = browser.observe(screenshot=False)
+                        swap = suggestion_for(text, None, state["page"], browser.evaluate(f"{OWNED}({node})"))
+                        if not swap:
+                            just_typed, state["decision"], state["status"] = None, None, "ready"
+                            continue
+                if decision["choice"] != "wait":  # a wait keeps the typed text for when suggestions arrive
+                    just_typed = None
+                if swap:
+                    action, decision["choice"] = swap, swap["id"]
+                    decision["probabilities"] = {**decision.get("probabilities", {}), swap["id"]: 0.0}
                 if action and action["kind"] == "fill" and browser.evaluate(f"{FIELD_IS_CREDENTIAL}({action['node']})"):
                     state["decision"] = None
                     if not login_pause(browser, args.login_wait, node=action["node"]):
@@ -328,41 +576,61 @@ def run(args):
                 own = (action or {}).get("base") or label
                 generic = own.strip().lower() in {"", "button", "link", "menuitem", "option", "tab"} or \
                     ((action or {}).get("named") is False and not (action or {}).get("menu"))
-                if action and action["kind"] in {"click", "select"} and (IRREVERSIBLE.search(own) or generic):
+                if action and action["kind"] in {"click", "select"} and (commits(own) or generic):
                     if not (confirm and confirm.lower() in label.lower()):
                         raise Stop("confirm", action=label)
-                steps = len(state["history"])
+                steps, before = len(state["history"]), state["page"]["fingerprint"]
+                browser.strict = bool(action and action["kind"] in {"click", "select"} and (commits(own) or generic))
                 try:
                     agent.command("act", {"fingerprint": state["page"]["fingerprint"]})
                 except ValueError as e:
-                    if "No single option" in str(e):  # a long list with no option matching the supplied value
+                    if "No single option" in str(e) or "not a number" in str(e):  # the value fits no list or counter
                         raise Stop("need_value", field=label, reason=str(e)) from None
                     raise
                 finally:
                     # One irreversible click per --confirm, spent as soon as the click is recorded (even if the
                     # page then navigates and the next read goes stale).
                     if len(state["history"]) > steps and action and confirm and confirm.lower() in label.lower() and \
-                            (IRREVERSIBLE.search(own) or generic):
+                            (commits(own) or generic):
                         confirm = None
                 if action and action["kind"] == "click":
                     last_node = action["node"]
+                if action and action["kind"] == "fill" and action.get("role") in {"combobox", "searchbox"} and \
+                        len(state["history"]) > steps:
+                    just_typed = (action["node"], state["history"][-1].get("text"), False)
+                elif carry and len(state["history"]) > steps and state["page"]["url"] == carry[2]:
+                    just_typed = (*carry[:2], True)
                 stale = 0
+                state["goal"] = goal
                 helper = (state["history"][-1].get("text_helper") or "") if len(state["history"]) > steps else ""
                 if helper.startswith("values:"):  # count a value only once it was actually typed
                     typed.append(helper[len("values:"):])
                 # Jev can cycle between two page states (a menu opening and closing), which the upstream no-change
-                # check misses: stop after 8 such actions instead of running to the step cap. Steppers, pagination
+                # check misses: stop after 9 actions cycling over at most 3 labels and 3 page states instead of running to the step cap. Steppers, pagination
                 # and date pickers repeat a label too, but each click reaches a new page state, so they pass.
                 if action and action["kind"] not in {"scroll", "wait"}:
-                    cycle = (cycle + [(label, state["page"]["fingerprint"])])[-8:]
-                    if len(cycle) == 8 and len({c[0] for c in cycle}) <= 2 and len({c[1] for c in cycle}) <= 2:
+                    # Longer cycles (a date range picked in the wrong order, then searched, again and again) visit
+                    # more states, but each pass replays the same action from the same page: three times is a loop.
+                    key = (label, before)
+                    replays[key] = replays.get(key, 0) + 1
+                    if replays[key] >= 3:
+                        raise Stop("blocked", reason="loop", actions=[label])
+                    # A search launched a third time is not progressing either, even when the page differs a
+                    # little on each pass (Booking: dates picked in the wrong order, then searched again).
+                    if action["kind"] == "click" and LAUNCHES_SEARCH.fullmatch(own.strip()):
+                        replays[("search", own.strip().lower())] = searches = \
+                            replays.get(("search", own.strip().lower()), 0) + 1
+                        if searches >= 3:
+                            raise Stop("blocked", reason="loop", actions=[label])
+                    cycle = (cycle + [key])[-9:]
+                    if len(cycle) == 9 and len({c[0] for c in cycle}) <= 3 and len({c[1] for c in cycle}) <= 3:
                         raise Stop("blocked", reason="loop", actions=sorted({c[0] for c in cycle}))
             except StalePage:
                 stale += 1
                 if stale >= 6:  # the chosen target keeps failing its pre-input check (covered, moving, disabled)
                     raise Stop("blocked", reason="unreachable") from None
                 state["decision"], state["status"] = None, "ready"
-                time.sleep(0.2)
+                time.sleep(0.05)
                 try:
                     state["page"] = browser.observe(screenshot=False)
                 except StalePage:
@@ -433,6 +701,8 @@ def main():
         result = run(args)
     except Stop as stop:
         result = {"status": stop.status, **stop.info}
+    except AllowNeeded as e:
+        result = {"status": "allow_needed", "reason": str(e)}
     except Exception as e:  # noqa: BLE001 - the caller needs a JSON status, not a traceback
         result = {"status": "error", "error": f"{type(e).__name__}: {e}"}
     log(args, result)

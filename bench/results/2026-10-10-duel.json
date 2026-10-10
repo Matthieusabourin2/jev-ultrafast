@@ -1,0 +1,1010 @@
+{
+ "date": "2026-10-10",
+ "machine": "Mac, Comet (profil personnel), connexion résidentielle",
+ "original": "browser-use/jev-ultrafast 1231850, modèle de texte remplacé par une réponse instantanée (duel) ou par le choix de valeur de jevnav (banc web)",
+ "flights_duel": [
+  {
+   "arm": "original",
+   "ok": true,
+   "s": 9.78,
+   "steps": 12,
+   "jev": 23
+  },
+  {
+   "arm": "fork",
+   "ok": true,
+   "s": 6.94,
+   "steps": 12,
+   "jev": 13
+  },
+  {
+   "arm": "original",
+   "ok": true,
+   "s": 7.42,
+   "steps": 12,
+   "jev": 17
+  },
+  {
+   "arm": "fork",
+   "ok": true,
+   "s": 7.14,
+   "steps": 11,
+   "jev": 13
+  },
+  {
+   "arm": "original",
+   "ok": true,
+   "s": 7.04,
+   "steps": 12,
+   "jev": 17
+  },
+  {
+   "arm": "fork",
+   "ok": true,
+   "s": 6.77,
+   "steps": 11,
+   "jev": 13
+  },
+  {
+   "arm": "original",
+   "ok": true,
+   "s": 8.25,
+   "steps": 12,
+   "jev": 20
+  },
+  {
+   "arm": "fork",
+   "ok": true,
+   "s": 6.84,
+   "steps": 12,
+   "jev": 13
+  },
+  {
+   "arm": "original",
+   "ok": true,
+   "s": 7.35,
+   "steps": 12,
+   "jev": 18
+  },
+  {
+   "arm": "fork",
+   "ok": true,
+   "s": 6.78,
+   "steps": 12,
+   "jev": 13
+  }
+ ],
+ "web": {
+  "wikipedia_fr": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 3.5,
+     "steps": 2,
+     "url": "https://fr.wikipedia.org/wiki/Marie_Curie",
+     "actions": [
+      "Rechercher sur Wikipédia ← 'Marie Curie'",
+      "Marie Curie physicienne et chimiste polonaise et française"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 3.8,
+     "steps": 2,
+     "url": "https://fr.wikipedia.org/wiki/Marie_Curie",
+     "actions": [
+      "Rechercher sur Wikipédia ← 'Marie Curie'",
+      "Marie Curie physicienne et chimiste polonaise et française"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.3,
+     "steps": 2,
+     "url": "https://fr.wikipedia.org/wiki/Marie_Curie",
+     "actions": [
+      "Rechercher sur Wikipédia",
+      "Marie Curie   physicienne et chimiste polonaise et française"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.1,
+     "steps": 2,
+     "url": "https://fr.wikipedia.org/wiki/Marie_Curie",
+     "actions": [
+      "Rechercher sur Wikipédia",
+      "Marie Curie   physicienne et chimiste polonaise et française"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ]
+  },
+  "github": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 19.1,
+     "steps": 6,
+     "url": "https://github.com/browser-use/browser-use",
+     "actions": [
+      "Search for repositories",
+      "Search for repositories ← 'browser-use'",
+      "Open Search for repositories",
+      "Open quick search dialog, type / to search",
+      "Recent search: browser-use",
+      "browser-use/ browser-use"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 9.1,
+     "steps": 6,
+     "url": "https://github.com/browser-use/browser-use",
+     "actions": [
+      "Search for repositories",
+      "Search for repositories ← 'browser-use'",
+      "Open Search for repositories",
+      "Open quick search dialog, type / to search",
+      "Recent search: browser-use",
+      "browser-use/ browser-use"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": false,
+     "status": "blocked",
+     "s": 5.4,
+     "steps": 5,
+     "url": "https://github.com/",
+     "actions": [
+      "Search for repositories",
+      "Search for repositories",
+      "Open Search for repositories",
+      "Open Search for repositories",
+      "Open Search for repositories"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": false,
+     "status": "blocked",
+     "s": 5.3,
+     "steps": 5,
+     "url": "https://github.com/",
+     "actions": [
+      "Search for repositories",
+      "Search for repositories",
+      "Open Search for repositories",
+      "Open Search for repositories",
+      "Open Search for repositories"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ]
+  },
+  "imdb": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 10.1,
+     "steps": 3,
+     "url": "https://www.imdb.com/fr/title/tt1375666/?ref_=fn_i_1",
+     "actions": [
+      "Rechercher dans IMDb · 8 suggestions disponible(s) ← 'Inception'",
+      "Soumettre la recherche",
+      "Voir la page du titre Inception · Inception 20102h 28mTous publics74Métascore 8,8 (2,9 M) Note"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 7.9,
+     "steps": 2,
+     "url": "https://www.imdb.com/fr/title/tt1375666/?ref_=nv_sr_srsg_0_tt_8_nm_0_in_0_q_Inception",
+     "actions": [
+      "Rechercher dans IMDb · 8 suggestions disponible(s) ← 'Inception'",
+      "Inception Inception 2010 Leonardo DiCaprio, Joseph Gordon-Levitt · Inception 2010 Leonardo DiCaprio, Joseph Gordon-Levitt"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 9.0,
+     "steps": 2,
+     "url": "https://www.imdb.com/fr/title/tt1375666/?ref_=nv_sr_srsg_0_tt_8_nm_0_in_0_q_Inception",
+     "actions": [
+      "Rechercher dans IMDb",
+      "Inception Inception 2010 Leonardo DiCaprio, Joseph Gordon-Levitt"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 6.8,
+     "steps": 2,
+     "url": "https://www.imdb.com/fr/title/tt1375666/?ref_=nv_sr_srsg_0_tt_8_nm_0_in_0_q_Inception",
+     "actions": [
+      "Rechercher dans IMDb",
+      "Inception Inception 2010 Leonardo DiCaprio, Joseph Gordon-Levitt"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ]
+  },
+  "hackernews": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 2.3,
+     "steps": 1,
+     "url": "https://news.ycombinator.com/item?id=50034081",
+     "actions": [
+      "19 comments"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 2.2,
+     "steps": 1,
+     "url": "https://news.ycombinator.com/item?id=50034081",
+     "actions": [
+      "19 comments"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 2.4,
+     "steps": 1,
+     "url": "https://news.ycombinator.com/item?id=50034081",
+     "actions": [
+      "19 comments"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 2.8,
+     "steps": 1,
+     "url": "https://news.ycombinator.com/item?id=50034081",
+     "actions": [
+      "19 comments"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ]
+  },
+  "youtube": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.5,
+     "steps": 3,
+     "url": "https://www.youtube.com/results?search_query=alan+turing+documentary",
+     "actions": [
+      "Rechercher ← 'Alan Turing documentary'",
+      "alan turing documentary · alan turing documentary bbc alan turing film alan turing doc",
+      "Search"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.7,
+     "steps": 3,
+     "url": "https://www.youtube.com/results?search_query=alan+turing+documentary",
+     "actions": [
+      "Rechercher ← 'Alan Turing documentary'",
+      "alan turing documentary · alan turing documentary bbc alan turing film alan turing doc",
+      "Search"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.6,
+     "steps": 3,
+     "url": "https://www.youtube.com/results?search_query=alan+turing+documentary",
+     "actions": [
+      "Rechercher",
+      "alan turing documentary",
+      "Search"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.6,
+     "steps": 3,
+     "url": "https://www.youtube.com/results?search_query=alan+turing+documentary",
+     "actions": [
+      "Rechercher",
+      "alan turing documentary",
+      "Search"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ]
+  },
+  "maps": {
+   "fork": [
+    {
+     "ok": false,
+     "status": "blocked",
+     "s": 3.7,
+     "steps": 5,
+     "url": "https://www.google.com/maps",
+     "actions": [
+      "Search Google Maps ← 'Tour Eiffel, Paris'",
+      "Search",
+      "Wait for the page to update",
+      "Search",
+      "Search"
+     ],
+     "reason": "loop",
+     "error": null
+    },
+    {
+     "ok": false,
+     "status": "blocked",
+     "s": 2.9,
+     "steps": 4,
+     "url": "https://www.google.com/maps",
+     "actions": [
+      "Search Google Maps ← 'Tour Eiffel, Paris'",
+      "Search",
+      "Search",
+      "Search"
+     ],
+     "reason": "loop",
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": false,
+     "status": "error",
+     "s": 4.8,
+     "steps": 4,
+     "url": "https://www.google.com/maps/search/Tour+Eiffel,+Paris/@41.4114963,2.1352049,15z?entry=ttu&",
+     "actions": [
+      "Search Google Maps",
+      "Search",
+      "Search",
+      "Search"
+     ],
+     "reason": null,
+     "error": "ValueError: Invalid TypeSafe response; no action executed."
+    },
+    {
+     "ok": false,
+     "status": "blocked",
+     "s": 4.7,
+     "steps": 2,
+     "url": "https://www.google.com/maps/search/Tour+Eiffel,+Paris/@41.4114963,2.1352049,15z?entry=ttu&",
+     "actions": [
+      "Search Google Maps",
+      "Search"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ]
+  },
+  "amazon_fr": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 8.7,
+     "steps": 4,
+     "url": "https://www.amazon.fr/Corsair-Core-Clavier-M%C3%A9canique-Repose-Paume/dp/B0CH8WZNM8/ref=s",
+     "actions": [
+      "Saisir le mot-clé ou numéro de produit ← 'clavier mécanique'",
+      "Go",
+      "Wait for the page to update",
+      "Corsair K70 Core RGB Clavier de Jeu Mécanique Filaire (AZERTY FR) – Noir"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 8.5,
+     "steps": 4,
+     "url": "https://www.amazon.fr/Corsair-Core-Clavier-M%C3%A9canique-Repose-Paume/dp/B0CH8WZNM8/ref=s",
+     "actions": [
+      "Saisir le mot-clé ou numéro de produit ← 'clavier mécanique'",
+      "Go",
+      "Wait for the page to update",
+      "Corsair K70 Core RGB Clavier de Jeu Mécanique Filaire (AZERTY FR) – Noir"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": false,
+     "status": "error",
+     "s": 43.8,
+     "steps": 1,
+     "url": "https://www.amazon.fr/",
+     "actions": [
+      "Saisir le mot-clé ou numéro de produit"
+     ],
+     "reason": null,
+     "error": "ValueError: Reached the demo's model-call budget"
+    },
+    {
+     "ok": false,
+     "status": "error",
+     "s": 44.1,
+     "steps": 1,
+     "url": "https://www.amazon.fr/",
+     "actions": [
+      "Saisir le mot-clé ou numéro de produit"
+     ],
+     "reason": null,
+     "error": "ValueError: Reached the demo's model-call budget"
+    }
+   ]
+  },
+  "booking": {
+   "fork": [
+    {
+     "ok": false,
+     "status": "done",
+     "s": 14.3,
+     "steps": 12,
+     "url": "https://www.booking.com/searchresults.fr.html?ss=Lisbonne&ssne=Lisbonne&ssne_untouched=Lis",
+     "actions": [
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov.",
+      "dimanche 22 novembre 2026",
+      "Rechercher",
+      "Choisir des dates. dim. 22 nov. — lun. 23 nov.",
+      "Choisir des dates. dim. 22 nov. — lun. 23 nov.",
+      "vendredi 20 novembre 2026"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": false,
+     "status": "blocked",
+     "s": 18.8,
+     "steps": 12,
+     "url": "https://www.booking.com/searchresults.fr.html?ss=Lisbonne&ssne=Lisbonne&ssne_untouched=Lis",
+     "actions": [
+      "dimanche 22 novembre 2026",
+      "Rechercher",
+      "Choisir des dates. dim. 22 nov. — lun. 23 nov.",
+      "vendredi 20 novembre 2026",
+      "Rechercher",
+      "Rechercher"
+     ],
+     "reason": "unreachable",
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": false,
+     "status": "error",
+     "s": 26.4,
+     "steps": 60,
+     "url": "https://www.booking.com/index.fr.html",
+     "actions": [
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov.",
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov.",
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov.",
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov.",
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov.",
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov."
+     ],
+     "reason": null,
+     "error": "ValueError: Stopped at the 60-action demo budget"
+    },
+    {
+     "ok": false,
+     "status": "error",
+     "s": 27.0,
+     "steps": 60,
+     "url": "https://www.booking.com/index.fr.html",
+     "actions": [
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov.",
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov.",
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov.",
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov.",
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov.",
+      "Choisir des dates. ven. 20 nov. — sam. 21 nov."
+     ],
+     "reason": null,
+     "error": "ValueError: Stopped at the 60-action demo budget"
+    }
+   ]
+  },
+  "service_public": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.8,
+     "steps": 3,
+     "url": "https://www.service-public.gouv.fr/particuliers/vosdroits/N367",
+     "actions": [
+      "Recherche ← 'carte grise'",
+      "Rechercher sur le site",
+      "Carte grise (certificat d'immatriculation) (Fiches pratiques)"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.5,
+     "steps": 3,
+     "url": "https://www.service-public.gouv.fr/particuliers/vosdroits/N367",
+     "actions": [
+      "Recherche ← 'carte grise'",
+      "Rechercher sur le site",
+      "Carte grise (certificat d'immatriculation) (Fiches pratiques)"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.7,
+     "steps": 3,
+     "url": "https://www.service-public.gouv.fr/particuliers/vosdroits/N367",
+     "actions": [
+      "Recherche",
+      "carte grise",
+      "Carte grise (certificat d'immatriculation) (Fiches pratiques)"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.7,
+     "steps": 3,
+     "url": "https://www.service-public.gouv.fr/particuliers/vosdroits/N367",
+     "actions": [
+      "Recherche",
+      "carte grise",
+      "Carte grise (certificat d'immatriculation) (Fiches pratiques)"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ]
+  },
+  "meteo": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 5.0,
+     "steps": 3,
+     "url": "https://meteofrance.com/previsions-meteo-france/montpellier/34000",
+     "actions": [
+      "Rechercher une ville, un pays... ← 'Montpellier'",
+      "Lancer la recherche",
+      "METEO Montpellier montpellier (34000)"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.4,
+     "steps": 3,
+     "url": "https://meteofrance.com/previsions-meteo-france/montpellier/34000",
+     "actions": [
+      "Rechercher une ville, un pays... ← 'Montpellier'",
+      "Lancer la recherche",
+      "METEO Montpellier montpellier (34000)"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": false,
+     "status": "done",
+     "s": 1.6,
+     "steps": 0,
+     "url": "https://meteofrance.com/",
+     "actions": [],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": false,
+     "status": "done",
+     "s": 2.8,
+     "steps": 0,
+     "url": "https://meteofrance.com/",
+     "actions": [],
+     "reason": null,
+     "error": null
+    }
+   ]
+  },
+  "doctolib": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 7.4,
+     "steps": 5,
+     "url": "https://www.doctolib.fr/search?keyword=dermatologue&location=montpellier",
+     "actions": [
+      "Nom, spécialité, établissement,... ← 'dermatologue'",
+      "Dermatologue et vénérologue",
+      "Où ? ← 'Montpellier'",
+      "Montpellier France",
+      "Rechercher"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 7.3,
+     "steps": 5,
+     "url": "https://www.doctolib.fr/search?keyword=dermatologue&location=montpellier",
+     "actions": [
+      "Nom, spécialité, établissement,... ← 'dermatologue'",
+      "Dermatologue et vénérologue",
+      "Où ? ← 'Montpellier'",
+      "Montpellier France",
+      "Rechercher"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": false,
+     "status": "blocked",
+     "s": 8.6,
+     "steps": 11,
+     "url": "https://www.doctolib.fr/",
+     "actions": [
+      "Wait for the page to update",
+      "Wait for the page to update",
+      "Wait for the page to update",
+      "Wait for the page to update",
+      "Wait for the page to update",
+      "Wait for the page to update"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": false,
+     "status": "error",
+     "s": 8.1,
+     "steps": 11,
+     "url": "https://www.doctolib.fr/",
+     "actions": [
+      "Wait for the page to update",
+      "Wait for the page to update",
+      "Wait for the page to update",
+      "Wait for the page to update",
+      "Wait for the page to update",
+      "Wait for the page to update"
+     ],
+     "reason": null,
+     "error": "ValueError: Invalid TypeSafe response; no action executed."
+    }
+   ]
+  },
+  "airbnb": {
+   "fork": [
+    {
+     "ok": false,
+     "status": "blocked",
+     "s": 6.7,
+     "steps": 9,
+     "url": "https://www.airbnb.fr/s/Porto--Portugal/homes?place_id=ChIJwVPhxKtlJA0RvBSxQFbZSKY&refinem",
+     "actions": [
+      "Dates Quand ?",
+      "Rechercher",
+      "Filtres",
+      "Filtres",
+      "Filtres",
+      "Filtres"
+     ],
+     "reason": "loop",
+     "error": null
+    },
+    {
+     "ok": false,
+     "status": "done",
+     "s": 8.1,
+     "steps": 10,
+     "url": "https://www.airbnb.fr/s/Porto--Portugal/homes?place_id=ChIJwVPhxKtlJA0RvBSxQFbZSKY&refinem",
+     "actions": [
+      "Filtres",
+      "Filtres",
+      "Filtres",
+      "Arrivée/Départ Une semaine",
+      "20, Friday, November 2026. Disponible. Définir comme date d'arrivée.",
+      "22, Sunday, November 2026. Disponible. Définir comme date de départ. : prix plus bas."
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": false,
+     "status": "done",
+     "s": 2.6,
+     "steps": 0,
+     "url": "https://www.airbnb.fr/",
+     "actions": [],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": false,
+     "status": "done",
+     "s": 2.9,
+     "steps": 0,
+     "url": "https://www.airbnb.fr/",
+     "actions": [],
+     "reason": null,
+     "error": null
+    }
+   ]
+  },
+  "decathlon": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.6,
+     "steps": 2,
+     "url": "https://www.decathlon.fr/search?Ntt=tente+2+places",
+     "actions": [
+      "Rechercher ← 'tente 2 places'",
+      "Rechercher · Effacer"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.5,
+     "steps": 2,
+     "url": "https://www.decathlon.fr/search?Ntt=tente+2+places",
+     "actions": [
+      "Rechercher ← 'tente 2 places'",
+      "Rechercher · Effacer"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": false,
+     "status": "crash",
+     "s": 5.7,
+     "steps": null,
+     "url": "",
+     "actions": [],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 4.8,
+     "steps": 2,
+     "url": "https://www.decathlon.fr/search?Ntt=tente+2+places",
+     "actions": [
+      "Rechercher",
+      "Rechercher"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ]
+  },
+  "flights_return": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 8.4,
+     "steps": 11,
+     "url": "https://www.google.com/travel/flights/search?tfs=CBwQAhooEgoyMDI2LTExLTIwagwIAxIIL20vMDVxd",
+     "actions": [
+      "Friday, November 20, 2026",
+      "Open Return",
+      "Friday, November 27, 2026 ????",
+      "Done. Search for round trip flights, departing on November 20, 2026 and returning on November 27, 2026",
+      "Search",
+      "Wait for the page to update"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 9.2,
+     "steps": 11,
+     "url": "https://www.google.com/travel/flights/search?tfs=CBwQAhooEgoyMDI2LTExLTIwagwIAxIIL20vMDVxd",
+     "actions": [
+      "Friday, November 20, 2026",
+      "Open Return",
+      "Friday, November 27, 2026 ????",
+      "Done. Search for round trip flights, departing on November 20, 2026 and returning on November 27, 2026",
+      "Search",
+      "Wait for the page to update"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 8.4,
+     "steps": 10,
+     "url": "https://www.google.com/travel/flights/search?tfs=CBwQAhooEgoyMDI2LTExLTIwagwIAxIIL20vMDVxd",
+     "actions": [
+      "Open Departure",
+      "Friday, November 20, 2026",
+      "Open Return",
+      "Friday, November 27, 2026 , 120 euros",
+      "Done. Search for round trip flights, departing on November 20, 2026 and returning on November 27, 2026",
+      "Search"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 8.8,
+     "steps": 11,
+     "url": "https://www.google.com/travel/flights/search?tfs=CBwQAhooEgoyMDI2LTExLTIwagwIAxIIL20vMDVxd",
+     "actions": [
+      "Friday, November 20, 2026",
+      "Open Return",
+      "Friday, November 27, 2026 , 120 euros",
+      "Done. Search for round trip flights, departing on November 20, 2026 and returning on November 27, 2026",
+      "Search",
+      "Wait for the page to update"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ]
+  },
+  "wikipedia_en_link": {
+   "fork": [
+    {
+     "ok": true,
+     "status": "done",
+     "s": 2.6,
+     "steps": 1,
+     "url": "https://en.wikipedia.org/wiki/Turing_machine",
+     "actions": [
+      "Turing machine"
+     ],
+     "reason": null,
+     "error": null
+    },
+    {
+     "ok": true,
+     "status": "done",
+     "s": 2.8,
+     "steps": 1,
+     "url": "https://en.wikipedia.org/wiki/Turing_machine",
+     "actions": [
+      "Turing machine"
+     ],
+     "reason": null,
+     "error": null
+    }
+   ],
+   "orig": [
+    {
+     "ok": false,
+     "status": "error",
+     "s": 47.5,
+     "steps": 0,
+     "url": "https://en.wikipedia.org/wiki/Alan_Turing",
+     "actions": [],
+     "reason": null,
+     "error": "ValueError: Reached the demo's model-call budget"
+    },
+    {
+     "ok": false,
+     "status": "error",
+     "s": 48.0,
+     "steps": 0,
+     "url": "https://en.wikipedia.org/wiki/Alan_Turing",
+     "actions": [],
+     "reason": null,
+     "error": "ValueError: Reached the demo's model-call budget"
+    }
+   ]
+  }
+ }
+}

@@ -1,8 +1,62 @@
 # Benchmark : jevnav sur Comet
 
-Google Flights en 9 secondes, vérifié trois fois sur trois.
+Google Flights en 6,8 secondes. L'original en met 7,4 sur la même machine.
 
 Ce document mesure le mode ultrafast, c'est-à-dire Jev qui pilote le navigateur de l'utilisateur en CDP direct, et le compare aux autres façons de naviguer depuis Claude. La question tranchée ici : qui doit décider de chaque clic ? Pas le modèle qui raisonne. Le modèle qui raisonne fixe l'objectif ; un modèle de décision joue les pas.
+
+## Duel contre l'original
+
+Un fork n'a de valeur que s'il bat sa source. Nous avons donc fait tourner jev-ultrafast d'origine (commit `1231850`) et jevnav côte à côte, le 10 octobre 2026.
+
+- **Même terrain.** Même Mac, même Comet, même tâche : vols aller simple Zurich → Londres le 20 novembre 2026, une personne. La date de l'original, le 20 septembre, est passée.
+- **Même chrono.** Il part de la première décision, après le chargement de la page, comme dans le README de l'original.
+- **Même juge.** Un script relit la page finale : page de résultats, aller simple, Zürich, London, date encodée dans l'URL, vols du 20 novembre.
+- **Un avantage à l'original.** Il écrit le texte des champs avec un second modèle (DeepSeek), dont nous n'avons pas la clé. Nous le remplaçons par une réponse instantanée.
+- **Cinq paires**, en alternance. Le banc est dans `bench/duel/`, les résultats bruts dans `bench/results/2026-10-10-duel.json`.
+
+| | Vérifiés | Médiane | Écart | Appels Jev |
+|---|---|---|---|---|
+| jev-ultrafast d'origine | 5/5 | 7,42 s | 7,04 à 9,78 s | 17 à 23 |
+| **jevnav** | **5/5** | **6,84 s** | **6,77 à 7,14 s** | **13** |
+
+jevnav gagne les cinq paires, avec un quart d'appels Jev en moins et un temps presque constant.
+
+Ce n'était pas acquis. Le premier duel donnait l'inverse : l'original à 7,2-9,4 s, trois fois sur trois, notre fork à 8,7-11,4 s, zéro fois sur trois. Le profil de chaque appel CDP a désigné les coupables, tous ajoutés par nous :
+
+| Poste mesuré | Avant | Après |
+|---|---|---|
+| Attente de stabilisation avant chaque lecture | 2,2 s par passage | supprimée |
+| Pauses (survol, reprise) | 1,4 s | 0,2 s |
+| Lecture d'une page de 12 000 éléments | 85 ms | 36 ms (l'original : 21 à 31 ms) |
+| Décisions refaites parce que les prix du calendrier chargeaient | 3 à 6 | 0 à 1 |
+| Choix de « Zürich, Switzerland » après la saisie de « Zurich » | un appel Jev | aucun, la suggestion nomme le texte tapé |
+
+Le reste vient de règles de main humaine : choisir la suggestion que le site attend, attendre dans la page quand Jev veut attendre, relancer la recherche après la fermeture d'un calendrier.
+
+## Quinze sites réels
+
+Mêmes tâches pour les deux versions, en lecture seule, deux passages chacune, contrôlées sur la page finale (`bench/web.py`, `--arm original` pour l'original). Pour taper les valeurs, l'original reçoit le choix de valeur de jevnav, faute de clé pour son modèle de texte. Le temps inclut le démarrage et le chargement.
+
+| Site | jevnav | Original |
+|---|---|---|
+| Wikipédia (fr), recherche | 2/2, 3,7 s | 2/2, 4,2 s |
+| GitHub, ouvrir un dépôt | 2/2, 9 à 19 s | 0/2, boucle |
+| IMDb, fiche d'un film | 2/2, 9,0 s | 2/2, 7,9 s |
+| Hacker News, commentaires | 2/2, 2,3 s | 2/2, 2,6 s |
+| YouTube, recherche | 2/2, 4,6 s | 2/2, 4,6 s |
+| Google Maps, fiche d'un lieu | 0/2 | 0/2 |
+| Amazon, premier produit | 2/2, 8,6 s | 0/2, 44 s puis erreur |
+| Booking, séjour à Lisbonne | 0/2 | 0/2 |
+| Service-public.fr | 2/2, 4,7 s | 2/2, 4,7 s |
+| Météo-France, ville | 2/2, 4,7 s | 0/2, « fini » sur l'accueil |
+| Doctolib, spécialiste et ville | 2/2, 7,4 s | 0/2 |
+| Airbnb, séjour à Porto | 0/2 | 0/2 |
+| Décathlon, recherche | 2/2, 4,6 s | 1/2, 4,8 s |
+| Google Flights, aller-retour | 2/2, 8,8 s | 2/2, 8,6 s |
+| Wikipédia (en), lien coupé sur deux lignes | 2/2, 2,7 s | 0/2, 48 s puis erreur |
+| **Total** | **24/30** | **13/30** |
+
+jevnav réussit presque deux fois plus de tâches. Sur les six sites que les deux versions réussissent, les temps se valent : 33,0 s au total contre 32,6 s. La vitesse se gagne sur les parcours longs ; sur une recherche en deux clics, le réseau et le chargement de la page dominent.
 
 ## Méthode
 
@@ -29,7 +83,7 @@ Une connexion réelle complète aussi le banc : le portail client d'un assureur 
 
 ## Comparaison
 
-Mêmes tâches, même Mac, mesurées le même jour avec les autres approches.
+Mêmes tâches, même Mac, mesurées le 4 octobre avec les autres approches. Pour l'original, le duel du 10 octobre ci-dessus fait foi.
 
 | Tâche | jevnav (Comet perso) | jev-ultrafast d'origine (Comet isolé) | Mod jev-browse, navigateur intégré | Mod jev-browse, Comet | Claude seul |
 |---|---|---|---|---|---|
@@ -41,7 +95,7 @@ Mêmes tâches, même Mac, mesurées le même jour avec les autres approches.
 Lecture :
 - **Face à Claude seul**, jevnav va 30 à 47 fois plus vite sur un lien et environ 9 fois plus vite sur le bouton asynchrone.
 - **Face au mod dans Claude Desktop**, l'écart vient du plancher de l'application : chaque clic, frappe ou script coûte 2,2 à 2,5 s. Une tâche de huit actions ne descend donc pas sous 18 s, quel que soit le décideur.
-- **Face à jev-ultrafast d'origine**, jevnav tient le même temps sans modèle de texte et corrige le « fini » prématuré. Il ajoute aussi trois choses : il travaille dans le profil réel, il passe les connexions par 1Password et il s'arrête avant toute action irréversible.
+- **Face à jev-ultrafast d'origine**, jevnav va plus vite sur Google Flights (duel ci-dessus) et réussit presque deux fois plus de sites réels. Il ajoute aussi trois choses : il travaille dans le profil réel, il passe les connexions par 1Password et il s'arrête avant toute action irréversible.
 
 ## Pourquoi c'est plus rapide
 
@@ -79,10 +133,16 @@ Les gardes se renforcent dans le même temps : sept pages vérifient qu'aucun id
 
 ## Limites
 
-- **Échantillon.** Trois passages par tâche, une machine, un réseau. Les écarts de quelques dixièmes de seconde ne sont pas significatifs.
+- **Échantillon.** Cinq paires pour le duel, deux passages pour les quinze sites, une machine, un réseau. Les écarts de quelques dixièmes de seconde ne sont pas significatifs.
+- **Mémoire du profil.** Les tests tournent dans le vrai profil Comet, et les sites se souviennent des passages précédents. Airbnb affiche « Porto, 20–22 nov. » dès l'accueil, et Jev s'arrête là.
+- **Échecs communs.** Booking (Jev choisit les deux dates dans le désordre quand des dates sont déjà remplies), Google Maps (le bouton de recherche ne réagit pas sur ce profil) et Airbnb échouent pour les deux versions. jevnav les arrête en 3 à 19 s, au lieu de laisser courir jusqu'au plafond de 60 actions.
 - **Plateforme.** La mise au premier plan et les notifications passent par macOS.
-- **Pilotage.** Le clic **Allow** se refait après chaque redémarrage du navigateur, et la case de débogage expose le navigateur aux programmes locaux tant qu'elle reste cochée.
+- **Pilotage.** Le clic **Allow** se refait après chaque redémarrage du navigateur, et la case de débogage expose le navigateur aux programmes locaux tant qu'elle reste cochée. S'il manque, jevnav répond `allow_needed` en 45 s au lieu d'attendre sans fin.
 - **Connexions.** Un formulaire dans une iframe d'un autre domaine n'est pas détecté : la connexion se fait alors à la main. Les gardes reposent sur des listes de libellés en anglais, français et espagnol.
 - **Valeurs.** Jev peut renvoyer `need_value` sur un champ au libellé ambigu ; l'appelant précise alors la valeur.
 
-Reproduire : `uv run --env-file .env python bench/run.py --runs 3`.
+## Qui lance jevnav : Haiku ou Opus
+
+Même tâche jevnav, déléguée à un sous-agent de Claude Code, aller-retour complet : Haiku 5.5 en 7,6 et 9,9 s, Opus en 12,2 s (un relevé aberrant à 191 s écarté). Le sous-agent coûte surtout son démarrage, environ 78 000 jetons de contexte, pour 2 à 3 s de navigation. Un appel isolé se lance donc directement depuis la conversation ; une navigation à plusieurs relances gagne à passer par un sous-agent Haiku. Deux paires seulement : à confirmer.
+
+Reproduire : `uv run --env-file .env python bench/run.py --runs 3`, `bench/web.py` et `bench/duel/`.

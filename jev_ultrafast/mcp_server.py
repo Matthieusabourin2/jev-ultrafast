@@ -5,6 +5,7 @@ Run: uv run --directory <repo> --with 'mcp<2' --env-file .env python -m jev_ultr
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -28,7 +29,8 @@ async def jevnav(goal: str, url: str | None = None, values: dict[str, str] | Non
     target: tab id from a previous result, to resume. confirm: allow one irreversible click whose label contains it.
     Statuses: done; need_value (add the value for `field`, resume with target); confirm (ask the user, then resume
     with confirm=<label>); login_timeout (tell the user to fill with 1Password and click the sign-in button, then
-    resume); in_progress (resume with target); blocked or error (report)."""
+    resume); allow_needed (tell the user to open Comet and click Allow, then call again); in_progress (resume with
+    target); blocked or error (report)."""
     # Stay under the client's request timeout: nav stops itself at the deadline and still returns the target.
     cmd = [sys.executable, "-m", "jev_ultrafast.nav", "--goal", goal, "--budget", "35", "--login-wait", "30",
            "--deadline", "45"]
@@ -37,8 +39,10 @@ async def jevnav(goal: str, url: str | None = None, values: dict[str, str] | Non
             cmd += [flag, value]
     if values:
         cmd += ["--values", json.dumps(values)]
+    # A pending "Allow" must answer allow_needed well inside the 45 s deadline.
     proc = await asyncio.create_subprocess_exec(*cmd, cwd=ROOT, stdout=asyncio.subprocess.PIPE,
-                                                stderr=asyncio.subprocess.PIPE)
+                                                stderr=asyncio.subprocess.PIPE,
+                                                env={**os.environ, "JEVNAV_ALLOW_WAIT": "20"})
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout=55)
     except TimeoutError:
