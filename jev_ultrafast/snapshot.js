@@ -41,7 +41,17 @@
       (['button','submit','reset'].includes(e.type) ? e.value : '') || e.getAttribute('alt') ||
       (e.tagName==='INPUT' ? '' : [...e.childNodes].map(n=>n.nodeType===3 ? n.textContent :
         n.nodeType===1 && n.getAttribute('aria-hidden')!=='true' ? name(n,seen) : '').join(' ').trim()) ||
-      e.getAttribute('title') || e.getAttribute('placeholder') || '';
+      e.getAttribute('title') || e.getAttribute('placeholder') || cssText(e);
+  };
+  // A name drawn only by CSS generated content (a ::after "J'accepte" on an empty span), read as a last resort.
+  const cssText = e => {
+    // The element, or its one child when it has exactly one (a span carrying the text): never a badge or a counter
+    // drawn next to an icon, which would name an icon-only button and spare it the confirmation.
+    for (const x of [e, ...(e.children.length===1 ? [e.children[0]] : [])]) for (const ps of ['::before','::after']) {
+      const m=getComputedStyle(x,ps).content?.match(/^"(.+)"$/);
+      if (m && /\p{L}{2}/u.test(m[1])) return m[1];
+    }
+    return '';
   };
   // Icon-only controls (common in web apps) have no accessible name: fall back to the hints a developer left.
   const hint = e => {
@@ -114,7 +124,7 @@
   const POPUP='dialog[open],[role="dialog"],[role="alertdialog"],[aria-modal="true"],[role="listbox"],[role="menu"]';
   // While a modal is open the rest of the page is inert to the user: offer only the modal's controls
   // (and popups it opened, such as a list rendered at the end of <body>).
-  const modal=[...document.querySelectorAll('dialog,[aria-modal="true"]')].reverse()
+  let modal=[...document.querySelectorAll('dialog,[aria-modal="true"]')].reverse()
     .find(d=>(d.matches('dialog:modal') || d.getAttribute('aria-modal')==='true') && d.checkVisibility() &&
       // A dialog still animating is opening or closing (Google Flights' calendar after "Done"): not modal yet.
       !d.getAnimations().some(a=>a.playState==='running') &&
@@ -125,6 +135,7 @@
   const popups=[...document.querySelectorAll(POPUP)].filter(d=>d.checkVisibility());
   const calendars=[...document.querySelectorAll('[role="grid"]')]
     .filter(g=>g.checkVisibility() && g.querySelectorAll('[role="gridcell"]').length<=100);
+  const collect=()=>{
   for (const e of document.querySelectorAll(selector)) {
     if (!safe(e) || e.matches(':disabled')) continue;
     // Position first, as the original does: most controls of a long page are off screen and leave here cheaply.
@@ -190,6 +201,12 @@
       if (editable && opens) actions.push({...base,kind:'click',value,label:'Open '+base.label});
     }
   }
+  };
+  collect();
+  // A modal that offers nothing (a drawer whose controls we cannot reach): read the page as if it were not there.
+  // Never for a modal holding an iframe (a payment, 3-D Secure or sign-in form we cannot read), and only for the
+  // hit-tested controls: the card and scroll-pane passes below stay inside the modal.
+  if (modal && !actions.length && !modal.querySelector('iframe')) { const held=modal; modal=null; collect(); modal=held; }
   // Plain elements made clickable by script (cards, rows) carry no role: take the outermost element showing a
   // pointer cursor that holds text and no control of its own.
   // Descend from <body>, skipping controls, hidden and off-screen subtrees, and stop at the first pointer element

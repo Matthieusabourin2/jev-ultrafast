@@ -1,0 +1,17 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Trains</title>
+<style>body{font:15px sans-serif;margin:30px}label{display:block;margin-top:10px}#cal{display:none;border:1px solid #999;padding:8px;width:260px}
+#cal button{width:32px;margin:2px}</style></head><body>
+<h1>Rechercher un train</h1>
+<form id="f">
+<label for="from">Gare de départ</label><input id="from" value="Paris">
+<label for="to">Gare d'arrivée</label><input id="to" value="Lyon">
+<label>Date</label><button type="button" id="when">jeu. 12 nov.</button>
+<div id="cal" role="dialog" aria-label="Novembre 2026"><div>Novembre 2026</div></div>
+<p><button id="go">Trouver des billets</button></p></form>
+<script>const when=document.getElementById('when'), cal=document.getElementById('cal'), f=document.getElementById('f'), from=document.getElementById('from'), to=document.getElementById('to'); let day=12;
+for (let d=1; d<=30; d++) { const b=document.createElement('button'); b.type='button'; b.textContent=d;
+  b.setAttribute('aria-label', d+' novembre 2026'); b.onclick=()=>{day=d; when.textContent=d+' nov.'; cal.style.display='none'}; cal.appendChild(b); }
+when.onclick=()=>{cal.style.display='block'};
+f.onsubmit=e=>{e.preventDefault();window.__result=from.value+'|'+to.value+'|'+day;document.title='Résultats';
+document.body.insertAdjacentHTML('beforeend','<h2>Trains '+from.value+' → '+to.value+', le '+day+' novembre</h2><p>08:12 TGV 49 €</p>')};</script>
+</body></html>

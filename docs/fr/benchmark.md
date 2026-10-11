@@ -4,6 +4,20 @@ Google Flights en 6,8 secondes. L'original en met 7,4 sur la même machine.
 
 Ce document mesure le mode ultrafast, c'est-à-dire Jev qui pilote le navigateur de l'utilisateur en CDP direct, et le compare aux autres façons de naviguer depuis Claude. La question tranchée ici : qui doit décider de chaque clic ? Pas le modèle qui raisonne. Le modèle qui raisonne fixe l'objectif ; un modèle de décision joue les pas.
 
+## Branche de nuit du 11 octobre (non fusionnée)
+
+La branche `nuit-2026-10-11` a mesuré cinquante essais, soit 45 expériences distinctes, et garde dix-neuf changements. Elle descend sous les six secondes sur Google Flights. Mesures sur le commit `fe9a223`, en paires alternées, même Mac, même Comet :
+
+| Banc | Avant | Branche de nuit |
+|---|---|---|
+| Google Flights contre l'original, 5 paires | original 6,93 s, 16 appels Jev | 5,87 s, 10 appels, 5 paires sur 5 |
+| 15 sites réels × 3, contre jevnav du 10 octobre | 35/45 réussis | 43/45 réussis |
+| Temps sur les 11 sites réussis des deux côtés | 58,2 s | 53,2 s |
+| 14 cas difficiles d'origine × 3 | 24,8 s | 22,3 s |
+| 12 sites jamais réglés × 2 | 10/24 | 14/24 (indice, à confirmer) |
+
+Le gain vient d'appels supprimés : le jour d'un calendrier, son « Done » et le refus d'un bandeau cookies se cliquent sans demander à Jev. Seize variantes de requête rejouées hors ligne montrent que la latence de Jev, environ 260 ms, ne dépend presque pas de la taille de la requête. Le détail, expérience par expérience, est dans `bench/nuit/RAPPORT.md`.
+
 ## Duel contre l'original
 
 Un fork n'a de valeur que s'il bat sa source. Nous avons donc fait tourner jev-ultrafast d'origine (commit `1231850`) et jevnav côte à côte, le 10 octobre 2026.

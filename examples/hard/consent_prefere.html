@@ -1,0 +1,11 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Bricolage</title>
+<style>body{font:15px sans-serif;margin:30px}#veil{position:fixed;inset:0;background:#0006}#ban{position:fixed;left:0;right:0;bottom:0;background:#eee;padding:20px}</style></head><body>
+<h1>Bricolage, déco, maison</h1>
+<form id="f"><input id="q" type="search" placeholder="Rechercher un produit" aria-label="Rechercher un produit"> <button aria-label="Rechercher">🔍</button></form>
+<div id="veil"></div><div id="ban" role="region" aria-label="Cookies"><p>Nous utilisons des cookies pour améliorer votre expérience. Consultez notre <a href="#">politique de cookies.</a></p>
+<button id="no">Non, je préfère refuser</button> <button id="yes">Oui, j’accepte</button></div>
+<script>let consent=null;
+no.onclick=()=>{consent='refused';ban.remove();veil.remove()}; yes.onclick=()=>{consent='accepted';ban.remove();veil.remove()};
+f.onsubmit=e=>{e.preventDefault();if(document.getElementById('ban'))return;window.__result=consent+'|'+q.value;document.title='Résultats';
+document.body.insertAdjacentHTML('beforeend','<h2>48 résultats pour '+q.value+'</h2>')};</script>
+</body></html>

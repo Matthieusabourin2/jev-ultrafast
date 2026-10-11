@@ -50,6 +50,15 @@ TASKS = {
     "doctolib": ("https://www.doctolib.fr/", "Search Doctolib for a dermatologue in Montpellier and show the results.",
                  {"specialty": "dermatologue", "place": "Montpellier"},
                  lambda r: "dermatolog" in r["url"] and "montpellier" in r["url"]),
+    # Run before booking/airbnb: the profile then remembers other dates, so those tasks must change them.
+    "booking_other": ("https://www.booking.com/index.fr.html",
+                      "Search stays in Lisbon from December 11 to December 13, 2026 for 1 adult and show the results.",
+                      {"destination": "Lisbon", "check_in": "December 11, 2026", "check_out": "December 13, 2026", "adults": "1"},
+                      lambda r: "searchresults" in r["url"] and "checkin=2026-12-11" in r["url"] and
+                      "checkout=2026-12-13" in r["url"] and "group_adults=1" in r["url"]),
+    "airbnb_other": ("https://www.airbnb.fr/", "Search Airbnb stays in Porto from December 11 to December 13, 2026 and show the results.",
+                     {"destination": "Porto", "check_in": "December 11, 2026", "check_out": "December 13, 2026"},
+                     lambda r: "/s/" in r["url"] and "2026-12-11" in r["url"] and "2026-12-13" in r["url"]),
     "airbnb": ("https://www.airbnb.fr/", "Search Airbnb stays in Porto from November 20 to November 22, 2026 and show the results.",
                {"destination": "Porto", "check_in": "November 20, 2026", "check_out": "November 22, 2026"},
                lambda r: "/s/" in r["url"] and "2026-11-20" in r["url"] and "2026-11-22" in r["url"]),

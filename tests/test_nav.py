@@ -220,3 +220,192 @@ def test_done_survives_a_ticking_clock_not_an_error():
     m = [1, "u", 0, 0, 1120, 780, "T", "Panier réservé 09:59", ["a"], []]
     assert same_page([*m[:7], "Panier réservé 09:58", *m[8:]], m)
     assert not same_page([*m[:7], "Panier réservé 09:59 Date invalide", *m[8:]], m)
+
+
+def test_sentence_refusals_decline_without_paying():
+    from jev_ultrafast.nav import commits, declines
+    for name in ["Non, je préfère refuser", "Je n'accepte rien: Refuser notre traitement des données et fermer",
+                 "Continuer sans accepter", "Tout refuser", "Reject all", "Je n’accepte rien"]:
+        assert declines(name) and not commits(name), name
+    for name in ["Refuser et s'abonner pour 0.99€ >", "J'accepte tout", "Accepter et fermer"]:
+        assert not declines(name), name
+    for name in ["Refuse and delete", "Ne pas accepter et supprimer le compte", "Refuser et envoyer",
+                 "Reject & delete account", "Refuser et résilier", "Refuser et commander", "Refuser et accepter les CGU"]:
+        assert commits(name), name
+
+
+def test_refusing_what_someone_sent_commits():
+    from jev_ultrafast.nav import commits, consent_refusal
+    for name in ["Refuser le devis", "Decline invitation", "Rejeter la demande", "Deny access", "Reject changes"]:
+        assert commits(name), name
+    page = {"actions": [{"kind": "click", "node": 1, "label": "Refuser le devis", "id": "a"},
+                        {"kind": "click", "node": 2, "label": "Decline", "id": "b"},
+                        {"kind": "click", "node": 3, "label": "Tout refuser", "id": "c"}]}
+    privacy = lambda n: "Ce devis respecte la confidentialité de vos données."
+    assert consent_refusal(page, privacy) is None  # privacy wording alone is not a cookie banner
+    cookies = lambda n: "Nous utilisons des cookies avec nos partenaires."
+    assert consent_refusal(page, cookies) is None  # no accept on that box: not a consent banner
+    banner = lambda n: "Nous utilisons des cookies avec nos partenaires. Accepter"
+    assert consent_refusal(page, banner)["id"] == "b"  # a bare refusal on a cookie banner
+
+
+def test_repeating_label_is_a_loop_unless_made_to_repeat():
+    from jev_ultrafast.nav import repeating
+    find = "Trouver des billets à petit prix"
+    assert repeating([find, find, find, "Aller", find]) == find
+    assert repeating([find, "Aller", find, find]) is None
+    assert repeating(["Next month"] * 6) is None and repeating(["+"] * 5) is None
+    assert repeating(["Ajouter un adulte"] * 4) is None
+
+
+def test_direct_fill_takes_only_an_unambiguous_field():
+    from jev_ultrafast.nav import direct_fill
+    page = {"actions": [{"kind": "fill", "role": "combobox", "node": 1, "id": "f1", "label": "Where from?", "value": "Paris"},
+                        {"kind": "fill", "role": "combobox", "node": 2, "id": "f2", "label": "Where to?", "value": ""}]}
+    values = {"from": "Zurich", "to": "London"}
+    assert direct_fill(values, [], page, set())[0] == "from"
+    assert direct_fill(values, ["from"], page, set())[0] == "to"
+    assert direct_fill({"query": "x"}, [], page, set()) is None  # no field named by the key: Jev decides
+    same = {"actions": [{**page["actions"][0], "value": "Zurich"}]}
+    assert direct_fill({"from": "Zurich"}, [], same, set()) is None  # already showing the value
+    dates = {"actions": [{"kind": "fill", "role": "textbox", "node": 3, "id": "f3", "label": "Departure", "value": ""}]}
+    assert direct_fill({"departure": "Nov 20, 2026"}, [], dates, set()) is None  # a date goes to the calendar
+
+
+def test_calendar_day_picks_the_one_matching_day():
+    from jev_ultrafast.nav import calendar_day
+    values = {"from": "Zurich", "departure_date": "Nov 20, 2026", "return_date": "Nov 27, 2026"}
+    page = {"actions": [{"kind": "click", "role": "gridcell", "node": 1, "id": "d1", "label": "Friday, November 20, 2026"},
+                        {"kind": "click", "role": "gridcell", "node": 2, "id": "d2", "label": "Friday, November 27, 2026 , 117 euros"},
+                        {"kind": "click", "role": "gridcell", "node": 3, "id": "d3", "label": "Sunday, December 20, 2026"}]}
+    assert calendar_day([{"action": "Open Departure"}], values, set(), page)[1]["id"] == "d1"
+    assert calendar_day([{"action": "Open Return"}], values, set(), page)[1]["id"] == "d2"
+    assert calendar_day([{"action": "Open Departure"}], values, {"departure_date"}, page) is None
+    assert calendar_day([{"action": "Departure"}], values, set(), page) is None  # only right after opening
+    two = {"actions": page["actions"] + [{**page["actions"][0], "node": 9, "id": "d9", "label": "20 novembre 2026"}]}
+    assert calendar_day([{"action": "Open Departure"}], values, set(), two) is None  # two candidates: Jev decides
+
+
+def test_calendar_day_never_takes_a_button_or_result_naming_the_date():
+    from jev_ultrafast.nav import calendar_day, day_month_year
+    v = {"departure_date": "Nov 20, 2026"}
+    page = {"actions": [{"kind": "click", "role": "button", "node": 1, "id": "b", "label": "Search for flights departing on November 20, 2026"},
+                        {"kind": "click", "role": "link", "node": 2, "id": "l", "label": "Depart Nov 20, 2026 · 117 €"}]}
+    assert calendar_day([{"action": "Open Departure"}], v, set(), page) is None
+    assert day_month_year("From 12 euros, Nov 20")[:2] == (20, 11)
+    assert day_month_year("mar. 3") is None and day_month_year("2 days ago") is None
+
+
+def test_echoed_query_means_results_shown_in_place():
+    from jev_ultrafast.nav import echoed
+    before = {"Rechercher une recette"}
+    page = {"text": "Rechercher une recette\n12 recettes pour ratatouille", "actions": []}
+    assert echoed(page, before, "ratatouille")
+    maps = {"text": "Rechercher une recette\nAix-les-Bains\nParis & Clichy",
+            "actions": [{"role": "option", "label": "Tour Eiffel Avenue Gustave Eiffel, Paris"}]}
+    assert not echoed(maps, before, "Tour Eiffel")
+
+
+def test_range_day_clicks_arrival_then_departure():
+    from jev_ultrafast.nav import range_day
+    values = {"destination": "Lisbon", "check_in": "November 20, 2026", "check_out": "November 22, 2026"}
+    cells = [{"kind": "click", "role": "checkbox", "node": d, "id": f"c{d}", "label": f"jour {d} novembre 2026"} for d in range(1, 31)]
+    page = {"actions": [{"kind": "click", "role": "button", "node": 99, "id": "b", "label": "Choisir des dates. ven. 20 nov. — ven. 27 nov."}] + cells}
+    assert range_day(values, [], set(), page) == ("check_in", cells[19])
+    assert range_day(values, [], {"check_in"}, page) == ("check_out", cells[21])
+    assert range_day(values, ["check_in"], set(), page) is None  # a typed date: not a range picked in the grid
+    assert range_day(values, [], set(), {"actions": cells[:10]}) is None  # no month grid open
+
+
+def test_direct_fill_needs_the_key_to_name_the_whole_label():
+    from jev_ultrafast.nav import direct_fill
+    page = {"actions": [{"kind": "fill", "role": "textbox", "node": 1, "id": "f1", "label": "Company name", "value": ""}]}
+    assert direct_fill({"name": "Dupont"}, [], page, set()) is None
+    row = {"actions": [{"kind": "fill", "role": "searchbox", "node": 2, "id": "f2", "label": "Search · flights from anywhere", "value": ""}]}
+    assert direct_fill({"search": "Paris", "from": "Lyon"}, [], row, set()) is None
+
+
+def test_range_day_steps_back_to_the_wanted_month():
+    from jev_ultrafast.nav import range_day
+    values = {"check_in": "November 20, 2026", "check_out": "November 22, 2026"}
+    dec = [{"kind": "click", "role": "checkbox", "node": d, "id": f"c{d}", "label": f"jour {d} décembre 2026"} for d in range(1, 31)]
+    back = {"kind": "click", "role": "button", "node": 100, "id": "p", "label": "Mois précédent"}
+    on = {"kind": "click", "role": "button", "node": 101, "id": "n", "label": "Mois suivant"}
+    assert range_day(values, [], set(), {"actions": dec + [back, on]}) == ("month:0", back)
+    assert range_day(values, [], {f"month:{i}" for i in range(6)}, {"actions": dec + [back, on]}) is None
+    step = {"kind": "click", "role": "button", "node": 102, "id": "s", "label": "Next step"}
+    assert range_day({"a": "January 5, 2027", "b": "January 7, 2027"}, [], set(), {"actions": dec + [step]}) is None
+
+
+def test_range_day_month_direction_without_years():
+    from jev_ultrafast.nav import range_day
+    dec = [{"kind": "click", "role": "gridcell", "node": d, "id": f"c{d}", "label": f"{d} décembre"} for d in range(1, 31)]
+    back = {"kind": "click", "role": "button", "node": 100, "id": "p", "label": "Mois précédent"}
+    on = {"kind": "click", "role": "button", "node": 101, "id": "n", "label": "Mois suivant"}
+    page = {"actions": dec + [back, on]}
+    assert range_day({"a": "5 janvier", "b": "7 janvier"}, [], set(), page) == ("month:0", on)
+    assert range_day({"a": "January 5, 2027", "b": "January 7, 2027"}, [], set(), page) == ("month:0", on)
+    assert range_day({"a": "20 novembre", "b": "22 novembre"}, [], set(), page) == ("month:0", back)
+
+
+def test_consent_refusal_ignores_a_trailing_arrow():
+    from jev_ultrafast.nav import consent_refusal
+    page = {"actions": [{"kind": "click", "node": 1, "id": "a", "label": "Continuer sans accepter ➜"}]}
+    assert consent_refusal(page, lambda n: "Nous utilisons des cookies pour améliorer votre expérience. Accepter") == page["actions"][0]
+
+
+def test_refusal_naming_a_thing_is_not_a_cookie_refusal():
+    from jev_ultrafast.nav import commits, declines, decline_instead
+    for name in ["Refuser la commande", "Reject and block", "Refuser la mission", "Refuser et signaler",
+                 "Refuser le contrat", "Refuser la facture"]:
+        assert not declines(name), name
+    for name in ["Non, je préfère refuser", "Tout refuser", "Refuser les cookies facultatifs", "Je n'accepte rien",
+                 "Continuer sans accepter", "Ne pas accepter"]:
+        assert declines(name), name
+    assert commits("Reject and block") and commits("Refuser et signaler")
+    accept = {"kind": "click", "node": 1, "id": "a", "label": "Accepter la commande"}
+    refuse = {"kind": "click", "node": 2, "id": "b", "label": "Refuser la commande"}
+    page = {"actions": [accept, refuse]}
+    # Privacy wording near an order's buttons never turns accepting it into refusing it.
+    assert decline_instead(accept, page, lambda a, b: "Commande n°42. Vos données sont protégées.") is None
+
+
+def test_gdpr_invitation_decline_is_not_clicked():
+    from jev_ultrafast.nav import consent_refusal
+    page = {"actions": [{"kind": "click", "node": 1, "id": "a", "label": "Decline"}]}
+    invite = lambda n: "GDPR compliance training, Tuesday 10:00. Your consent is recorded. Accept Decline"
+    assert consent_refusal(page, invite) is None
+
+
+def test_picker_done_never_clicks_apply_or_ok():
+    from jev_ultrafast.nav import picker_done
+    history = [{"kind": "click", "action": "Friday, November 20, 2026"}]
+    values = {"date": "Nov 20, 2026"}
+    for name in ["Apply", "OK", "Done & sign", "Appliquer"]:
+        page = {"actions": [{"kind": "click", "node": 9, "id": "d", "label": name}]}
+        assert picker_done(history, values, ["date"], set(), page) is None, name
+    page = {"actions": [{"kind": "click", "node": 9, "id": "d", "label": "Done"}]}
+    assert picker_done(history, values, ["date"], set(), page)["id"] == "d"
+
+
+def test_foreign_and_block_refusals_and_committing_descriptions():
+    from jev_ultrafast.nav import commits, declines
+    for name in ["Alle Cookies ablehnen", "Rechazar todas las cookies", "Refuser les cookies non nécessaires",
+                 "Bloquer les cookies", "Block all cookies"]:
+        assert declines(name) and not commits(name), name
+    for name in ["Alle akzeptieren", "Zustimmen", "Alle zulassen", "Accetta tutti", "Block user", "Bloquer", "Block",
+                 "Bloquer le contact",
+                 "Reject: delete", "Decline: report user"]:
+        assert commits(name), name
+    assert not commits("Tout refuser : refuser tous les cookies et fermer")
+    assert not commits("Continuer sans accepter : continuer sans accepter les cookies")
+
+
+def test_block_all_and_colon_tails_confirm():
+    from jev_ultrafast.nav import commits
+    for name in ["Tout bloquer", "Bloquer tout", "Block all", "Tout bloquer : ce contact", "Block all: Alice Martin",
+                 "Tout refuser : effacer la conversation", "Decline: leave group", "Ablehnen: Nachricht löschen",
+                 "Rechazar: bloquear contacto", "Löschen", "Blockieren", "Bloquear"]:
+        assert commits(name), name
+    for name in ["Refuser la proposition", "Refuser la mission", "Decline proposal"]:
+        assert commits(name), name

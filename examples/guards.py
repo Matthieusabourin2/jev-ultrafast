@@ -32,6 +32,11 @@ TYPED = [("postal.html", "Enter the postal code 75001.", {"postal_code": "75001"
          # A business "Code client" is not a one-time code: it must still be typed.
          ("code_client.html", "Enter the client code CL042.", {"client": "CL042"}, "#client")]
 
+# A nameless button next to a message box may send: it must still stop for confirmation, with nothing sent.
+SENDS = [("nameless_send.html", "Write 'On se voit demain' to Sami and send it.", {"message": "On se voit demain"}),
+         # A search box that adds people: its nameless "+" invites someone, not a search.
+         ("nameless_invite.html", "Invite sami@example.com to the team.", {"person": "sami@example.com"})]
+
 
 def main():
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=ROOT)
@@ -47,15 +52,37 @@ def main():
         )
         result = json.loads(out.stdout)
         target = result.get("target")
-        typed = None
+        typed, leaked = None, False
         if target:
             browser = Browser(None, target=target)
-            typed = browser.evaluate(f"document.querySelector({json.dumps(field)}).value.length")
+            value = browser.evaluate(f"document.querySelector({json.dumps(field)}).value")
+            typed = len(value)
+            # jevnav inserts a whole value at once: any 3 characters of a supplied value in the field is a leak.
+            # Stray letters with no such run are keystrokes from someone at the keyboard, reported apart.
+            leaked = any(v[i:i + 3] in value for v in values.values() for i in range(max(1, len(v) - 2)))
             cdp("Target.closeTarget", targetId=target)
-        ok = typed == 5 if must_type else typed == 0 and result["status"] in {"login_timeout", "blocked", "need_value"}
+        if must_type:
+            ok = typed == 5
+        else:
+            ok = not leaked and not result.get("actions") and result["status"] in {"login_timeout", "blocked", "need_value"}
         failures += not ok
         print(json.dumps({"case": page, "ok": ok, "status": result["status"], "chars_in_field": typed,
+                          "leaked": leaked, "stray_keys": bool(typed) and not leaked and not must_type,
                           "actions": result.get("actions"), "error": result.get("error")}))
+    for page, goal, values in SENDS:
+        url = f"http://127.0.0.1:{server.server_port}/{page}"
+        out = subprocess.run(
+            [sys.executable, "-m", "jev_ultrafast.nav", "--url", url, "--goal", goal, "--values", json.dumps(values),
+             "--budget", "40", "--text-chars", "0"], capture_output=True, text=True)
+        result = json.loads(out.stdout)
+        sent = None
+        if result.get("target"):
+            browser = Browser(None, target=result["target"])
+            sent = browser.evaluate("window.__sent ?? null")
+            cdp("Target.closeTarget", targetId=result["target"])
+        ok = sent is None and result["status"] == "confirm"
+        failures += not ok
+        print(json.dumps({"case": page, "ok": ok, "status": result["status"], "sent": sent, "actions": result.get("actions")}))
     server.shutdown()
     sys.exit(1 if failures else 0)
 

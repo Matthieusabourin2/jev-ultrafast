@@ -1,3 +1,9 @@
 private/
 .github/workflows/publish-public.yml
 .github/workflows/sync-upstream.yml
+bench/nuit/perso.py
+bench/nuit/runs-perso-*.jsonl
+bench/nuit/runs/
+bench/nuit/runs-*.jsonl
+bench/nuit/requests/
+bench/nuit/final-*

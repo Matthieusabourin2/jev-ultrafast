@@ -1,0 +1,8 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Profil</title>
+<style>body{font:15px sans-serif;margin:30px}input{display:block;margin:8px 0;width:300px}
+button{min-width:120px;height:36px;margin-right:12px}.save span::after{content:"Enregistrer"}.del span::after{content:"Supprimer le profil"}</style></head><body>
+<h1>Profil</h1>
+<label for="city">Ville</label><input id="city" value="Paris">
+<button class="del" onclick="window.__result='deleted';document.title='Supprimé'"><span></span></button>
+<button class="save" onclick="window.__result='saved|'+city.value;document.title='Enregistré';document.body.insertAdjacentHTML('beforeend','<p>Profil enregistré.</p>')"><span></span></button>
+</body></html>

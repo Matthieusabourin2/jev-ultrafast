@@ -18,6 +18,8 @@ from jev_ultrafast.browser import Browser
 
 ROOT = Path(__file__).with_name("hard")
 CASES = {
+    # A search box whose only button is a nameless magnifier icon (Larousse, Hugging Face, LDLC).
+    "nameless_search": ("Search the catalogue for perceuse and show the results.", {"query": "perceuse"}, "search:perceuse"),
     # Five rows, each with an icon-only "…" button and a menu rendered in a portal (claude.ai projects list).
     "row_menu": ("Rename the project « Veille IA »: open its options menu and choose Renommer.", {}, "rename:Veille IA"),
     # An icon "+" button known only by its tooltip, then a dialog with two fields (claude.ai custom connector).
@@ -55,6 +57,17 @@ CASES = {
     # A form in a modal that scrolls on its own, with a custom day list and the save button below its edge (claude.ai).
     "modal_scroll": ("Create a new scheduled task named « Veille IA » that runs on lundi, and save it.", {"name": "Veille IA"},
                      "Veille IA|lundi"),
+    # A consent wall whose refusal reads "Je n'accepte rien" (contains "accepte"): refuse, then search (Marmiton).
+    "consent_rien": ("Search the recipes for ratatouille.", {"query": "ratatouille"}, "refused|ratatouille"),
+    # A cookie bar whose refusal is a sentence, "Non, je préfère refuser", that blocks the search (Leroy Merlin).
+    "consent_prefere": ("Search the products for perceuse.", {"query": "perceuse"}, "refused|perceuse"),
+    # Button names drawn only by CSS (::after content), as on Didomi pay-or-ok walls: read them, save, never delete.
+    "css_label": ("Set the city to Montpellier and save the profile.", {"city": "Montpellier"}, "saved|Montpellier"),
+    # A consent wall whose refusal sits one layer down, behind "Afficher toutes les finalités" (OneTrust, Trainline).
+    "consent_layer": ("Search trains from Lyon.", {"from": "Lyon"}, "refused|Lyon"),
+    # A search form the site filled from an earlier visit (Paris → Lyon, 12 Nov): change only what differs.
+    "remembered": ("Search trains from Paris to Lyon on November 20, 2026.",
+                   {"from": "Paris", "to": "Lyon", "date": "November 20, 2026"}, "Paris|Lyon|20"),
     "settings_save": ("Replace the project instructions with « Veille IA chaque lundi » and save them.",
                       {"instructions": "Veille IA chaque lundi"}, "Veille IA chaque lundi"),
 }

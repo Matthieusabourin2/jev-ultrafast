@@ -56,7 +56,7 @@ IRREVERSIBLE = re.compile(
     r"cancel (?:my |the |your )?(?:subscription|order|booking|plan|account|membership)|"
     r"annuler (?:mon |ma |la |le |l')?(?:abonnement|commande|r[ée]servation|compte)|allow|autoriser|permitir|authori[sz]e|i agree|agree|j'accepte|acepto|sell|vendre|vender|trash|"
     r"corbeille|discard|apply now|postuler|d[ée]clarer|declare|se d[ée]connecter|d[ée]connexion|log ?out|sign ?out|"
-    r"cerrar sesi[oó]n|abmelden)\b",
+    r"cerrar sesi[oó]n|abmelden|signaler|report|block|bloquer|akzeptieren|zustimmen|zulassen|einverstanden|accetta|accetto|effacer|quitter|leave|löschen|blockieren|melden|senden|entfernen|bloquear|denunciar)\b",
     re.I,
 )
 # Two harmless names that contain a committing word: running a search ("Soumettre la recherche") and refusing
@@ -64,27 +64,71 @@ IRREVERSIBLE = re.compile(
 SEARCH_SUBMIT = re.compile(r"(submit|soumettre|valider|lancer|launch)\s+(the |la |ma |une |your )?(search|recherche)\s*",
                            re.I)
 DECLINE = re.compile(r"(tout )?refuser( tout| les cookies| et fermer)?|continuer sans accepter|je refuse|non,? merci|"
+                     r"bloquer les cookies|block all cookies|"
                      r"reject( all)?( cookies)?|decline( all)?|deny( all)?|(use )?(only )?(necessary|essential)"
                      r"( cookies)?( only)?|(cookies )?n[ée]cessaires? uniquement|uniquement (les cookies )?n[ée]cessaires|"
                      r"rechazar( todo| todas)?|(alle )?ablehnen", re.I)
+# A short refusal worded as a sentence: "Non, je préfère refuser", "Je n'accepte rien", "Ne pas accepter".
+DECLINE_WORDS = re.compile(r"\brefus\w*|\breject\w*|\bdecline\b|\bdeny\b|\bn['’]accepte (rien|pas)\b|\bsans accepter\b|"
+                           r"\bne pas accepter\b|\brejeter\b|\bablehnen\b|\brechazar\b|\bdon['’]?t accept\b", re.I)
 PAYWALL = re.compile(r"abonn|subscri|\bpa(y|ie|yer)|€|\$", re.I)
+# What may surround the refusal words in a refusal: "Non, je préfère refuser", "Refuser les cookies facultatifs".
+# Anything else names a thing being refused ("Refuser la commande", "Reject and block"): not a cookie refusal.
+DECLINE_FILLER = {"tout", "toutes", "tous", "les", "des", "cookies", "cookie", "traceurs", "merci", "non", "je",
+                  "préfère", "prefere", "sans", "accepter", "continuer", "fermer", "et", "all", "optional", "non",
+                  "essentiels", "essentials", "essential", "facultatifs", "optionnels", "rien", "pas", "ne", "i", "no",
+                  "thanks", "thank", "you", "rather", "not", "and", "close", "continue", "without", "accepting",
+                  "alle", "todas", "todos", "las", "los", "nécessaires", "necessaires", "necessary", "unnecessary"}
+# A box that speaks of cookies, strictly: "consent" or "GDPR" alone appear in invitations and trainings too.
+COOKIE_STRICT = re.compile(r"cookie|traceur", re.I)
+
+
+def declines(name):
+    """Whether a control's own name refuses (cookies, an offer) without paying: full refusal names, or a short
+    sentence holding a refusal word and no accept-all."""
+    head = name.split(":")[0].strip().rstrip(".!")
+    if PAYWALL.search(name):
+        return False
+    # Only filler words may remain once the refusal words are taken out ("Refuser et supprimer", "Refuser la
+    # commande" still stop).
+    rest = re.findall(r"[^\W\d_]+", DECLINE_WORDS.sub(" ", head).lower())
+    return bool(DECLINE.fullmatch(head) or (len(head) <= 40 and DECLINE_WORDS.search(head) and
+                                            all(w in DECLINE_FILLER for w in rest)))
 # A consent banner's accept button, and the words that mark the banner holding it.
 CONSENT_ACCEPT = re.compile(r"\b(accept\w*|accepter|j'accepte|tout accepter|agree|allow all|autoriser|aceptar|"
                             r"akzeptieren)\b", re.I)
+# A consent banner's way to its second layer, where the refusal often hides (OneTrust, Didomi, Sourcepoint).
+CONSENT_SETTINGS = re.compile(r"(param[eéè]tr\w*|personnali[sz]\w*|customi[sz]e|g[ée]rer (mes |les |vos )?(choix|pr[ée]f[ée]rences|cookies|options)|"
+                              r"afficher (toutes )?les finalit[ée]s|(manage|customi[sz]e|cookie) (settings|preferences|options|choices)|"
+                              r"(more )?options|pr[ée]f[ée]rences|settings|en savoir plus et (personnaliser|param[ée]trer))", re.I)
 CONSENT_CONTEXT = re.compile(r"cookie|consent|traceurs|vos donn[ée]es|nos partenaires|privacy|confidentialit", re.I)
 # The text of the smallest element holding both controls, if it is banner-sized: the refusal must sit on the same
 # banner as the accept button, never elsewhere on the page (an invitation's "Decline" is not a cookie refusal).
 SHARED_BOX = """((a, b) => {
   const x=window.__jevFast?.nodes.get(a), y=window.__jevFast?.nodes.get(b); if (!x || !y) return null;
   let box=x.parentElement; while (box && !box.contains(y)) box=box.parentElement;
+  while (box && (box.innerText||'').length<150) box=box.parentElement;  // a bare button row: read its banner
   const text=box?.innerText||''; return box && text.length<4000 ? text : null;
 })"""
+
+
+# Refusing what someone sent (an invitation, a quote, a request) reaches that person: it needs approval too.
+REFUSES_SOMEONE = re.compile(r"\b(refus\w*|decline\w*|reject\w*|rejeter|deny|ignorer|ignore)\b.{0,25}\b(invitation|invite|"
+                             r"devis|quote|demande|request|offre|offer|candidature|application|ami|friend|meeting|"
+                             r"r[ée]union|rendez-vous|appointment|pull request|changes|modifications|connexion|access|acc[eè]s|proposition|proposal|mission|projet|project)",
+                             re.I)
 
 
 def commits(own):
     """Whether a control's own name commits something the user must approve (pay, send, delete, accept…)."""
     head = own.split(":")[0].strip().rstrip(".!")
-    if (SEARCH_SUBMIT.fullmatch(head) or DECLINE.fullmatch(head)) and not PAYWALL.search(own):
+    if REFUSES_SOMEONE.search(head) or re.search(r"\b(apply (for|to|now)|postuler|candidater|envoyer (ma|votre) candidature)\b", head, re.I):
+        return True
+    # A refusal whose description commits ("Reject: delete", "Decline: report user") still stops.
+    tail = DECLINE_WORDS.sub(" ", own.split(":", 1)[1]) if ":" in own else ""
+    if declines(own) and IRREVERSIBLE.search(tail):
+        return True
+    if (SEARCH_SUBMIT.fullmatch(head) and not PAYWALL.search(own)) or declines(own):
         return False
     return bool(IRREVERSIBLE.search(own))
 
@@ -101,16 +145,69 @@ def decline_instead(action, page, banner, confirm=None):
         return None
     for a in page["actions"]:
         name = a.get("base") or a["label"]
-        if a["kind"] == "click" and DECLINE.fullmatch(name.split(":")[0].strip().rstrip(".!")) and \
-                not PAYWALL.search(name):
+        if a["kind"] == "click" and declines(name):
             text = banner(action["node"], a["node"])
-            if text is not None and CONSENT_CONTEXT.search(own + " " + text):
+            if text is not None and COOKIE_STRICT.search(own + " " + text):
                 return a
+    # No refusal on this layer: open the banner's settings, where "Tout refuser" usually is.
+    for a in page["actions"]:
+        # The name before any colon or comma ("Afficher toutes les finalités, Ouvre la boîte de dialogue…").
+        name = re.split(r"[:,]", a.get("base") or a["label"])[0].strip().rstrip(".!")
+        if a["kind"] == "click" and a["node"] != action["node"] and len(name) <= 40 and \
+                CONSENT_SETTINGS.fullmatch(name) and not commits(name):
+            text = banner(action["node"], a["node"])
+            if text is not None and COOKIE_STRICT.search(own + " " + text):
+                return a
+    return None
+
+
+# The text of the box around a control: its nearest ancestor holding a paragraph, if banner-sized.
+BOX_TEXT = """(node => {
+  let e=window.__jevFast?.nodes.get(node)?.parentElement;
+  while (e && (e.innerText||'').length<150) e=e.parentElement;
+  const text=e?.innerText||''; return e && text.length<4000 ? text : null;
+})"""
+
+
+COOKIE_WORDS = re.compile(r"cookie|traceur|consentement|\bconsent|rgpd|gdpr", re.I)
+
+
+def consent_refusal(page, box):
+    """A cookie refusal to click before anything else: a control named only as a refusal ("Tout refuser", "Je
+    n'accepte rien") in a box that speaks of cookies. `box(node)` returns the text of the box around a control, or
+    None when that box is page-sized. "Refuser le devis" or "Decline invitation" never qualify."""
+    for a in page["actions"]:
+        name = a.get("base") or a["label"]
+        head = re.sub(r"[\W_]+$", "", name.split(":")[0].strip())  # "Continuer sans accepter ➜": the arrow is decoration
+        if a["kind"] == "click" and declines(name) and not commits(name) and \
+                (DECLINE.fullmatch(head) or re.fullmatch(r"(non,? )?je (n['’]accepte (rien|pas)|pr[ée]f[èe]re refuser)", head, re.I)):
+            text = box(a["node"])
+            # The banner also offers to accept: a lone "Decline" in a box about cookies is not enough.
+            if text is not None and COOKIE_STRICT.search(text) and CONSENT_ACCEPT.search(text):
+                return a
+    return None
+
+
+# Controls made to be pressed again and again: steppers, pagination, calendar months.
+REPEATABLE = re.compile(r"\b(next|suivant|suivante|previous|pr[ée]c[ée]dent\w*|plus|moins|more|less|add|ajouter|increase|"
+                        r"decrease|augmenter|diminuer|mois|month|page|scroll|load more|voir plus|afficher plus)\b|^[+\-−›‹>< ]+$",
+                        re.I)
+
+
+def repeating(labels):
+    """The label pressed 4 times in the last 6 actions (scrolls and waits aside), unless it is made to repeat."""
+    recent = labels[-6:]
+    for label in set(recent):
+        if recent.count(label) >= 4 and not REPEATABLE.search(label):
+            return label
     return None
 
 
 # A control that closes a picker ("Done" under a calendar), and one that launches a search.
 CLOSES_PICKER = re.compile(r"(done|termin[ée]|ok|apply|appliquer|listo|aplicar)\b", re.I)
+# The whole name of a picker's own "Done" (picker_done clicks it without asking Jev): never "Apply" or "OK",
+# which also submit forms and applications.
+PICKER_DONE = re.compile(r"(done|termin[ée]|listo)", re.I)
 LAUNCHES_SEARCH = re.compile(r"(search|rechercher|recherche|buscar|suchen|trouver)\b", re.I)
 
 
@@ -146,6 +243,22 @@ def premature_done(history, values, typed, page, nudged):
 
 
 # A field that announces a list of suggestions; with `shown`, whether that list now shows options.
+SUBMITS_TYPED = """((field, button) => {
+  const x=window.__jevFast?.nodes.get(field), y=window.__jevFast?.nodes.get(button); if (!x?.isConnected || !y?.isConnected) return false;
+  // Only a search box: a single-line input that says so (never a textarea or editor, where a nameless button may send).
+  if (x.tagName !== 'INPUT') return false;
+  const says=[x.type, x.getAttribute('role'), x.name, x.id, x.placeholder, x.getAttribute('aria-label')].join(' ');
+  if (!/\\b(search|recherch|chercher|buscar|busca|suche|cerca|zoek)/i.test(says)) return false;
+  // A search that adds someone or something (invite, share, recipient) is not a plain search.
+  const near=(x.closest('form,[role="search"],[role="dialog"]')||x.parentElement)?.innerText||'';
+  if (/invit|\\badd\\b|ajout|share|partag|recipient|destinataire|b[ée]n[ée]ficiaire|payee|member|membre|people|personnes?\\b|\\busers?\\b|contact/i.test(says + ' ' + near.slice(0, 400))) return false;
+  const form=y.closest('form'); if (form && (form.method||'get').toLowerCase()==='post') return false;
+  // The button sits next to the field: within three levels up, in a box with that one text field and no password.
+  let box=x.parentElement; for (let i=1; box && i<3 && !box.contains(y); i++) box=box.parentElement;
+  if (!box || !box.contains(y) || box.querySelector('input[type="password"]')) return false;
+  const texts=[...box.querySelectorAll('input,textarea,[contenteditable="true"]')].filter(e => !/^(hidden|submit|button|checkbox|radio|reset|image)$/i.test(e.type||''));
+  return texts.length === 1 && texts[0] === x;
+})"""
 SUGGESTS = """((node, shown) => {
   const e=window.__jevFast?.nodes.get(node); if (!e?.isConnected) return false;
   if (!shown) return /list|both|inline/.test(e.getAttribute('aria-autocomplete')||'') ||
@@ -264,6 +377,149 @@ def names(option):
     return fold((option.get("first") or option.get("base") or option["label"]).split(",")[0])
 
 
+MONTHS = [("jan", "janv", "janvier", "january", "ene", "enero", "januar"), ("feb", "fev", "fevr", "fevrier", "february", "febrero", "februar"),
+          ("mar", "mars", "march", "marzo", "marz"), ("apr", "avr", "avril", "april", "abr", "abril"),
+          ("may", "mai", "mayo"), ("jun", "juin", "june", "junio", "juni"), ("jul", "juil", "juillet", "july", "julio", "juli"),
+          ("aug", "aou", "aout", "august", "ago", "agosto"), ("sep", "sept", "septembre", "september", "septiembre"),
+          ("oct", "octobre", "october", "octubre", "oktober"), ("nov", "novembre", "november", "noviembre"),
+          ("dec", "decembre", "december", "dic", "diciembre", "dez", "dezember")]
+
+
+WEEKDAYS = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "lundi", "mardi", "mercredi",
+            "jeudi", "vendredi", "samedi", "dimanche", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"}
+
+
+def day_month_year(text):
+    """(day, month, year or None) of the first date in a text, in words or ISO, else None. The day is the number
+    right after the month ("Nov 20"), else right before it ("20 nov.")."""
+    t = fold(text)
+    m = re.search(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", t)
+    if m:
+        return int(m[3]), int(m[2]), int(m[1])
+    words = re.findall(r"[a-z]+|\d+", t)
+    day = lambda x: x.isdigit() and len(x) <= 2 and 1 <= int(x) <= 31
+    for i, w in enumerate(words):
+        month = next((n + 1 for n, names_ in enumerate(MONTHS) if w in names_), None)
+        if not month:
+            continue
+        after = words[i + 1] if i + 1 < len(words) and day(words[i + 1]) else None
+        before = words[i - 1] if i and day(words[i - 1]) else \
+            words[i - 2] if i > 1 and words[i - 1] in WEEKDAYS and day(words[i - 2]) else None  # "22, Sunday, November"
+        # "mar." is also Tuesday (mardi, martes): March only as "20 mar" or "Mar 20, 2026".
+        if w == "mar" and not before and not (after and i + 2 < len(words) and len(words[i + 2]) == 4 and words[i + 2].isdigit()):
+            continue
+        if after or before:
+            rest = words[i + 2:i + 3] if after else words[i + 1:i + 2]
+            year = next((int(x) for x in rest if x.isdigit() and len(x) == 4), None)
+            return int(after or before), month, year
+    return None
+
+
+DATE_WORDS = {w for names_ in MONTHS for w in names_} | {
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "lundi", "mardi", "mercredi", "jeudi",
+    "vendredi", "samedi", "dimanche", "lun", "mer", "jeu", "ven", "sam", "dim", "mon", "tue", "wed", "thu", "fri", "sat",
+    "sun", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo", "euros", "euro", "eur", "usd", "chf",
+    "gbp", "from", "des", "a", "partir", "de", "selected", "today", "aujourd", "hui", "departure", "return", "date", "dates"}
+
+
+def date_only(label):
+    """A label that is just a date, maybe with a weekday, a price and a calendar word: a day cell, not a button."""
+    return all(w.isdigit() or w in DATE_WORDS for w in re.findall(r"[a-z]+|\d+", fold(label)))
+
+
+def calendar_day(history, values, picked, page):
+    """Right after opening a date field, the one visible day matching the value its key names (no model call).
+
+    Only when the opened field's label names exactly one supplied date key, and exactly one control shows that
+    day (same year when both say it). Anything less certain goes to Jev."""
+    if not history or not history[-1].get("action", "").startswith("Open "):
+        return None
+    keys = [k for k in names_key(history[-1]["action"][5:], values) if k not in picked]
+    want = len(keys) == 1 and day_month_year(str(values[keys[0]]))
+    if not want:
+        return None
+    days = [a for a in page["actions"] if a["kind"] == "click" and not a.get("offscreen") and
+            (a.get("role") == "gridcell" or (a.get("role") in {"button", "option", "link"} and date_only(a.get("base") or a["label"])))]
+    found = []
+    for a in days:
+        got = day_month_year(a.get("base") or a["label"])
+        if got and got[:2] == want[:2] and (not got[2] or not want[2] or got[2] == want[2]):
+            found.append(a)
+    return (keys[0], found[0]) if len({a["node"] for a in found}) == 1 else None
+
+
+def range_day(values, typed, picked, page):
+    """In an open month grid (20 day cells or more), the next day of a supplied date range to click, in date order:
+    arrival first, then departure, whatever the grid already shows (sites remember an earlier search). Only for
+    exactly two supplied dates, neither typed; the day must be shown by exactly one cell."""
+    dates = [k for k in values if day_month_year(str(values[k]))]
+    if len(dates) != 2 or any(k in typed for k in dates):
+        return None
+    cells = [a for a in page["actions"] if a["kind"] == "click" and not a.get("offscreen") and
+             not a["label"].startswith("Open ") and day_month_year(a.get("base") or a["label"])]
+    # The grid's cells share one role; a summary button ("Choisir des dates. ven. 20 nov. — ven. 27 nov.") does not.
+    roles = [a.get("role") for a in cells]
+    cells = [a for a in cells if a.get("role") == max(set(roles), key=roles.count)] if cells else []
+    if len({a["node"] for a in cells}) < 20:
+        return None
+    order = sorted(dates, key=lambda k: (lambda d: (d[2] or 0, d[1], d[0]))(day_month_year(str(values[k]))))
+    for k in order:
+        if k in picked:
+            continue
+        want = day_month_year(str(values[k]))
+        found = [a for a in cells if (lambda got: got[:2] == want[:2] and (not got[2] or not want[2] or got[2] == want[2]))(
+            day_month_year(a.get("base") or a["label"]))]
+        if found:
+            return (k, found[0]) if len({a["node"] for a in found}) == 1 else None
+        # The grid shows other months (the site kept an earlier search): step toward the wanted month, six times at most.
+        dates_shown = [day_month_year(a.get("base") or a["label"]) for a in cells]
+        steps = sum(1 for p in picked if str(p).startswith("month:"))
+        if steps >= 6:
+            return None
+        if want[2] and all(d[2] for d in dates_shown):  # years on both sides: compare (year, month)
+            shown = sorted({(d[2], d[1]) for d in dates_shown})
+            goal = (want[2], want[1])
+            if shown[0] <= goal <= shown[-1]:
+                return None
+            back = goal < shown[0]
+        else:  # no years: the shorter way round the twelve months, forward on a tie
+            months = {d[1] for d in dates_shown}
+            if want[1] in months:
+                return None
+            ahead = min((want[1] - m) % 12 for m in months)
+            back = 12 - max((want[1] - m) % 12 for m in months) < ahead
+        way = MONTH_BACK if back else MONTH_ON
+        nav = [a for a in page["actions"] if a["kind"] == "click" and not a.get("offscreen") and
+               way.search(a.get("base") or a["label"])]
+        return (f"month:{steps}", nav[0]) if len({a["label"] for a in nav}) == 1 else None
+    return None
+
+
+MONTH_BACK = re.compile(r"\bmois (précédent|precedent)\b|\bprevious month\b", re.I)
+MONTH_ON = re.compile(r"\bmois (suivant|prochain)\b|\bnext month\b", re.I)
+
+
+def picker_done(history, values, typed, picked, page):
+    """Right after a day was clicked, the picker's one "Done" control, when every supplied date is now entered."""
+    last = history[-1].get("action", "") if history else ""
+    if not history or history[-1].get("kind") != "click" or not day_month_year(last) or not date_only(last):
+        return None
+    dates = [k for k in values if day_month_year(str(values[k]))]
+    if not dates or any(k not in typed and k not in picked for k in dates):
+        return None
+    done = [a for a in page["actions"] if a["kind"] == "click" and not a.get("offscreen") and
+            PICKER_DONE.fullmatch((a.get("base") or a["label"]).strip().rstrip(".!")) and not commits(a.get("base") or a["label"])]
+    return done[0] if len({a["node"] for a in done}) == 1 else None
+
+
+def echoed(page, lines_before, typed):
+    """Whether a new line on the page, outside the suggestions, repeats the typed query (results shown in place)."""
+    want = fold(typed or "")
+    options = {fold(a["label"]) for a in page["actions"] if a.get("role") == "option"}
+    return bool(want) and any(want in fold(line) and fold(line) not in options
+                              for line in set(page.get("text", "").splitlines()) - lines_before)
+
+
 def exact_suggestion(typed, page, owned=None):
     """The one suggestion naming exactly the typed text (accents and case aside)."""
     if not typed or owned is False:
@@ -294,6 +550,43 @@ def suggestion_for(typed, action, page, owned=None, exact=False):
         found = next((a for a in options if test(fold(a.get("base") or a["label"]))), None)
         if found:
             return found
+    return None
+
+
+def names_key(label, values):
+    """The supplied keys whose words name a field label ("from" in "Where from?"), by the rule value_chooser uses."""
+    label_words = set(re.findall(r"\w+", fold(label)))
+    meaningful = {w for w in label_words if len(w) > 2 and w not in STOPWORDS}
+    return [k for k in values if (lambda kw: kw <= label_words or (meaningful and meaningful <= kw))(
+        set(re.findall(r"\w+", fold(key_words(k)))))]
+
+
+# A date value: typed into a date field it often fights the field's own calendar, so Jev and the picker handle it.
+DATE_VALUE = re.compile(r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}|\b(jan|feb|f[ée]v|mar|apr|avr|may|mai|jun|juin|jul|juil|aug|ao[uû]|"
+                        r"sep|oct|nov|dec|d[ée]c)\w*\.?\s*\d|\d\s*(jan|feb|f[ée]v|mar|apr|avr|may|mai|jun|juin|jul|juil|aug|"
+                        r"ao[uû]|sep|oct|nov|dec|d[ée]c)", re.I)
+
+
+FIELD_WORDS = {"code", "numero", "number", "no", "num", "votre", "your", "saisir", "enter", "indiquez", "e"}
+
+
+def direct_fill(values, typed, page, done):
+    """A field to fill without asking Jev: the one visible text field a supplied, not yet typed key names, and the
+    only key naming it. `done` holds the keys already filled this way (once each)."""
+    fields = [a for a in page["actions"] if a["kind"] == "fill" and a.get("role") in {"textbox", "combobox", "searchbox"}]
+
+    def whole(label, k):  # the key names the whole label ("from" ↔ "Where from?"), not a part ("name" ↔ "Company name")
+        # Hints in brackets ("(14 chiffres)"), digits and field-type words ("Code APE") do not name anything else.
+        words = {w for w in re.findall(r"[a-z]+", fold(re.sub(r"\([^)]*\)", " ", label)))} - STOPWORDS - FIELD_WORDS
+        return bool(words) and words <= set(re.findall(r"\w+", fold(key_words(k))))
+
+    for k in values:
+        if k in typed or k in done or DATE_VALUE.search(str(values[k])):
+            continue
+        # The label Jev and value_chooser read (row text included when two controls share a name).
+        hits = [a for a in fields if names_key(a["label"], values) == [k] and whole(a["label"], k)]
+        if len({a["node"] for a in hits}) == 1 and fold(hits[0].get("value") or "") != fold(str(values[k])):
+            return k, hits[0]
     return None
 
 
@@ -435,8 +728,9 @@ def run(args):
                            " return !a || a.tagName !== 'INPUT' || !isCredential(a); })()")
     state["history"] = saved.get("history", [])
     status, info, logins, empty_waits, done_waits, last_node = None, {}, 0, 0, 0, None
-    goal, nudged = state["goal"], set()
-    cycle, auto_scrolls, stale, unsure_waits, just_typed, replays = [], 0, 0, 0, None, {}
+    goal, nudged, nudged_consent, directed, picked_days, banned = state["goal"], set(), 0, set(), set(), set()
+    last_fill = None
+    cycle, auto_scrolls, stale, unsure_waits, just_typed, replays, pressed = [], 0, 0, 0, None, {}, []
     confirm = args.confirm
     try:
         while state["status"] not in {"done", "blocked"}:
@@ -466,13 +760,48 @@ def run(args):
                     state["page"] = browser.observe(screenshot=False)
                 # Typed "Zurich" and the list offers "Zürich, Switzerland": the suggestion naming exactly what was
                 # typed (before its comma) needs no model call. Anything less certain goes to Jev.
-                pick = just_typed and not just_typed[2] and exact_suggestion(
+                # A cookie banner with a refusal on it: refuse first, without a model call (privacy, and Jev tends
+                # to wait in front of a consent layer). Twice at most: some banners have a second layer.
+                refusal = nudged_consent < 2 and consent_refusal(state["page"], lambda n: browser.evaluate(f"{BOX_TEXT}({n})"))
+                if refusal:
+                    nudged_consent += 1
+                    if state["started_at"] is None:  # the clock starts at the first decision, model or not
+                        state["started_at"] = time.perf_counter()
+                    state["decision"], state["status"] = {
+                        "choice": refusal["id"], "operation": "CLICK", "target": None, "confidence": 1.0,
+                        "probabilities": {refusal["id"]: 1.0}, "latency_ms": 0, "usage": {}}, "predicted"
+                pick = not refusal and just_typed and not just_typed[2] and exact_suggestion(
                     just_typed[1], state["page"], browser.evaluate(f"{OWNED}({just_typed[0]})"))
-                if pick:
+                direct = not refusal and not pick and not just_typed and direct_fill(values, typed, state["page"], directed)
+                if direct:
+                    directed.add(direct[0])
+                    if state["started_at"] is None:
+                        state["started_at"] = time.perf_counter()
+                    state["decision"], state["status"] = {
+                        "choice": direct[1]["id"], "operation": "TYPE_TEXT", "target": None, "confidence": 1.0,
+                        "probabilities": {direct[1]["id"]: 1.0}, "latency_ms": 0, "usage": {}}, "predicted"
+                day = not refusal and not pick and not direct and (
+                    calendar_day(state["history"], values, picked_days, state["page"]) or
+                    range_day(values, typed, picked_days, state["page"]))
+                if day:
+                    picked_days.add(day[0])
+                elif not refusal and not pick and not direct and "picker_done" not in nudged:
+                    close = picker_done(state["history"], values, typed, picked_days, state["page"])
+                    if close:
+                        nudged.add("picker_done")
+                        day = (None, close)
+                if day:
+                    state["decision"], state["status"] = {
+                        "choice": day[1]["id"], "operation": "CLICK", "target": None, "confidence": 1.0,
+                        "probabilities": {day[1]["id"]: 1.0}, "latency_ms": 0, "usage": {}}, "predicted"
+                if refusal or direct or day:
+                    pass
+                elif pick:
                     state["decision"], state["status"] = {
                         "choice": pick["id"], "operation": "CLICK", "target": None, "confidence": 1.0,
                         "probabilities": {pick["id"]: 1.0}, "latency_ms": 0, "usage": {}}, "predicted"
                 else:
+                    agent.banned = banned
                     agent.command("predict")
                 decision = state["decision"]
                 # An unsure BLOCKED right after an action is usually a page still working (a dialog submitting, a
@@ -514,6 +843,17 @@ def run(args):
                         state["page"] = browser.observe(screenshot=False)
                         state["decision"], state["status"] = None, "ready"
                         continue
+                    # Days picked in a calendar this run, and no search since: the results do not use them yet.
+                    if why is None and decision["choice"] == "DONE" and "after_days" not in nudged and \
+                            any(not str(p).startswith("month:") for p in picked_days):
+                        clicks = [i for i, h in enumerate(state["history"]) if h.get("kind") == "click"]
+                        days = [i for i in clicks if day_month_year(state["history"][i].get("action", ""))]
+                        launched = [i for i in clicks if LAUNCHES_SEARCH.match(state["history"][i].get("action", ""))]
+                        go = next((a for a in state["page"]["actions"] if a["kind"] == "click" and not a.get("offscreen")
+                                   and LAUNCHES_SEARCH.fullmatch((a.get("base") or a["label"]).strip())), None)
+                        if days and (not launched or launched[-1] < days[-1]) and go:
+                            nudged.add("after_days")
+                            why, search = "search", go
                     if why == "values" and decision["choice"] == "DONE":  # say so in the goal Jev reads, and ask again (once: a date may be clicked)
                         nudged.add(why)
                         state["goal"] = goal + " Not entered yet in this run: " + \
@@ -575,11 +915,21 @@ def run(args):
                 # accessible name (only a test-id hint or its role) is unknown, unless it merely opens a menu.
                 own = (action or {}).get("base") or label
                 generic = own.strip().lower() in {"", "button", "link", "menuitem", "option", "tab"} or \
-                    ((action or {}).get("named") is False and not (action or {}).get("menu"))
+                    ((action or {}).get("named") is False or not re.search(r"[^\W_]", own)) and not (action or {}).get("menu")
+                # A nameless button that submits the search form just typed into (no password, one text field,
+                # not a POST form) only launches that search.
+                if generic and action and action["kind"] == "click" and last_fill is not None and not commits(label) and \
+                        browser.evaluate(f"{SUBMITS_TYPED}({json.dumps(last_fill)}, {json.dumps(action['node'])})"):
+                    generic = False
                 if action and action["kind"] in {"click", "select"} and (commits(own) or generic):
                     if not (confirm and confirm.lower() in label.lower()):
+                        # A cookie wall that only offers "accept" or "pay": say so, the caller asks the user which.
+                        box = CONSENT_ACCEPT.search(own) and browser.evaluate(f"{BOX_TEXT}({json.dumps(action['node'])})")
+                        if box and COOKIE_WORDS.search(box) and PAYWALL.search(box):
+                            raise Stop("confirm", action=label, reason="consent_or_pay")
                         raise Stop("confirm", action=label)
-                steps, before = len(state["history"]), state["page"]["fingerprint"]
+                steps, before, url_before = len(state["history"]), state["page"]["fingerprint"], state["page"]["url"]
+                lines_before = set(state["page"].get("text", "").splitlines())
                 browser.strict = bool(action and action["kind"] in {"click", "select"} and (commits(own) or generic))
                 try:
                     agent.command("act", {"fingerprint": state["page"]["fingerprint"]})
@@ -593,8 +943,34 @@ def run(args):
                     if len(state["history"]) > steps and action and confirm and confirm.lower() in label.lower() and \
                             (commits(own) or generic):
                         confirm = None
+                if action and len(state["history"]) > steps:  # only right after typing
+                    last_fill = action["node"] if action["kind"] == "fill" else None
                 if action and action["kind"] == "click":
                     last_node = action["node"]
+                    # A search launched right after typing that changed nothing: some sites (Google Maps) ignore it
+                    # until their own suggestions have loaded. Click it again, up to three times, without Jev.
+                    if len(state["history"]) > steps and "relaunch" not in nudged and \
+                            LAUNCHES_SEARCH.fullmatch(own.strip()) and state["history"][-2:-1] and \
+                            state["history"][-2].get("kind") == "fill" and state["page"]["url"] == url_before and \
+                            carry and not echoed(state["page"], lines_before, carry[1]):
+                        # Typed into a field with suggestions, then searched without picking one, and no new line
+                        # repeats the query ("12 recettes pour ratatouille"): the search did not run.
+                        nudged.add("relaunch")
+                        for _ in range(3):  # 0.8 s apart, until the page leaves or shows the results
+                            time.sleep(0.8)
+                            state["page"] = browser.observe(screenshot=False)
+                            if state["page"]["url"] != url_before or echoed(state["page"], lines_before, carry[1]):
+                                break
+                            same = [a for a in state["page"]["actions"] if a["kind"] == "click" and
+                                    (a.get("base") or a["label"]) == own]
+                            again = next((a for a in same if a["node"] == action["node"]), same[0] if same else None)
+                            if not again:
+                                break
+                            try:
+                                browser.act(again, state["page"])
+                            except Exception:  # noqa: BLE001 - the click Jev chose already ran; stop retrying
+                                break
+                        state["page"] = browser.observe(screenshot=False)
                 if action and action["kind"] == "fill" and action.get("role") in {"combobox", "searchbox"} and \
                         len(state["history"]) > steps:
                     just_typed = (action["node"], state["history"][-1].get("text"), False)
@@ -614,7 +990,9 @@ def run(args):
                     key = (label, before)
                     replays[key] = replays.get(key, 0) + 1
                     if replays[key] >= 3:
-                        raise Stop("blocked", reason="loop", actions=[label])
+                        if banned or label in banned:  # a second loop: stop
+                            raise Stop("blocked", reason="loop", actions=[label])
+                        banned.add(label)  # a first loop: hide that control from Jev and let it try another way
                     # A search launched a third time is not progressing either, even when the page differs a
                     # little on each pass (Booking: dates picked in the wrong order, then searched again).
                     if action["kind"] == "click" and LAUNCHES_SEARCH.fullmatch(own.strip()):
@@ -622,6 +1000,12 @@ def run(args):
                             replays.get(("search", own.strip().lower()), 0) + 1
                         if searches >= 3:
                             raise Stop("blocked", reason="loop", actions=[label])
+                    pressed.append(label)
+                    if repeating(pressed):  # the same control again and again, each time on a slightly new page
+                        if banned:  # a second loop: stop
+                            raise Stop("blocked", reason="loop", actions=[label])
+                        banned.add(label)  # a first loop: hide that control from Jev and let it try another way
+                        pressed.clear()
                     cycle = (cycle + [key])[-9:]
                     if len(cycle) == 9 and len({c[0] for c in cycle}) <= 3 and len({c[1] for c in cycle}) <= 3:
                         raise Stop("blocked", reason="loop", actions=sorted({c[0] for c in cycle}))
@@ -639,6 +1023,8 @@ def run(args):
         status, info = stop.status, stop.info
     except Exception as e:  # noqa: BLE001 - keep the target and state so the caller can resume
         status, info = "error", {"error": f"{type(e).__name__}: {e}"}
+        if os.environ.get("JEVNAV_TRACE"):
+            import traceback; traceback.print_exc()
     signal.alarm(0)  # never interrupt the result and state writes
     status = status or state["status"]
     page = state["page"]

@@ -1,0 +1,40 @@
+"""Second held-out set, frozen on 11 October 2026 before any experiment. Only its score is ever read: no failure here
+is inspected or debugged, so it stays a fair measure of how jevnav does on sites nobody tuned it for.
+"""
+import re
+
+TASKS = {
+    "bbc": ("https://www.bbc.com/", "Search BBC for climate and show the results.",
+            {"query": "climate"}, lambda r: "climate" in r["url"].lower() and "search" in r["url"].lower()),
+    "cdiscount": ("https://www.cdiscount.com/", "Search Cdiscount for aspirateur and show the results.",
+                  {"query": "aspirateur"}, lambda r: "aspirateur" in r["url"].lower()),
+    "darty": ("https://www.darty.com/", "Search Darty for machine à laver and show the results.",
+              {"query": "machine à laver"}, lambda r: "machine" in r["url"].lower()),
+    "boulanger": ("https://www.boulanger.com/", "Search Boulanger for réfrigérateur and show the results.",
+                  {"query": "réfrigérateur"}, lambda r: re.search(r"r%C3%A9frig|refrig|réfrig", r["url"], re.I)),
+    "20minutes": ("https://www.20minutes.fr/", "Open the Sport section of 20 Minutes.",
+                  {}, lambda r: "/sport" in r["url"]),
+    "francetvinfo": ("https://www.francetvinfo.fr/", "Open the Monde section of franceinfo.",
+                     {}, lambda r: "/monde/" in r["url"]),
+    "wikipedia_es": ("https://es.wikipedia.org/", "Search Wikipedia for Gabriel García Márquez and open his article.",
+                     {"query": "Gabriel García Márquez"},
+                     lambda r: re.search(r"/wiki/Gabriel_Garc(%C3%AD|í)a_M(%C3%A1|á)rquez$", r["url"])),
+    "arxiv": ("https://arxiv.org/", "Search arXiv for attention is all you need and show the results.",
+              {"query": "attention is all you need"}, lambda r: "search" in r["url"] and "attention" in r["url"].lower()),
+    "huggingface": ("https://huggingface.co/", "Search Hugging Face for bert-base-uncased and open its model page.",
+                    {"query": "bert-base-uncased"}, lambda r: r["url"].rstrip("/").endswith("bert-base-uncased")),
+    "python_docs": ("https://docs.python.org/3/", "Search the Python documentation for asyncio and show the results.",
+                    {"query": "asyncio"}, lambda r: "search.html" in r["url"] and "asyncio" in r["url"]),
+    "rottentomatoes": ("https://www.rottentomatoes.com/", "Search Rotten Tomatoes for Inception and open the movie page.",
+                       {"query": "Inception"}, lambda r: r["url"].rstrip("/").endswith("/m/inception")),
+    "goodreads": ("https://www.goodreads.com/", "Search Goodreads for Dune and show the results.",
+                  {"query": "Dune"}, lambda r: "search" in r["url"] and "dune" in r["url"].lower()),
+    "thefork": ("https://www.thefork.fr/", "Search TheFork for restaurants in Montpellier and show the results.",
+                {"place": "Montpellier"}, lambda r: "montpellier" in r["url"].lower()),
+    "castorama": ("https://www.castorama.fr/", "Search Castorama for perceuse and show the results.",
+                  {"query": "perceuse"}, lambda r: "perceuse" in r["url"].lower()),
+    "ldlc": ("https://www.ldlc.com/", "Search LDLC for clavier and show the results.",
+             {"query": "clavier"}, lambda r: "clavier" in r["url"].lower()),
+    "blablacar": ("https://www.blablacar.fr/", "Search carpools from Paris to Lyon and show the results.",
+                  {"from": "Paris", "to": "Lyon"}, lambda r: "search" in r["url"] and "lyon" in r["url"].lower()),
+}

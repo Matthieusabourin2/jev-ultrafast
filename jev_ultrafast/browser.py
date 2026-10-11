@@ -111,9 +111,11 @@ class Browser:
     def read(self, screenshot):
         for attempt in range(10):
             try:
-                return browser_operation(
+                page = browser_operation(
                     {"operation": "observe", "session": self.session, "screenshot": screenshot}
                 )
+                self.read_at = time.perf_counter()
+                return page
             except StalePage:
                 if attempt == 9:
                     raise

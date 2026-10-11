@@ -12,6 +12,13 @@ from .questions import NEXT_ACTION, TARGET, TEXT_VALUE
 CLIENT = httpx.Client(http2=True, timeout=25)
 
 
+def warm_up():
+    try:
+        CLIENT.get("https://api.typesafe.ai/", timeout=3)
+    except Exception:  # noqa: BLE001 - only the open connection matters
+        pass
+
+
 def post_json(url, key, body):
     for attempt in range(3):
         try:

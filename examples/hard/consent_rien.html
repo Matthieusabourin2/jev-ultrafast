@@ -1,0 +1,16 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Recettes de cuisine</title>
+<style>body{font:15px sans-serif;margin:30px}#wall{position:fixed;inset:0;background:#0007;display:flex;align-items:center;justify-content:center}
+#box{background:#fff;padding:24px;width:520px}#box button{margin:6px}</style></head><body>
+<h1>Recettes de cuisine</h1>
+<form id="f"><label for="q">Rechercher une recette</label> <input id="q" type="search" name="q"> <button>Rechercher</button></form>
+<div id="wall"><div id="box" role="dialog" aria-label="Vos choix">
+<p>Avec nos 1135 partenaires, nous utilisons des cookies pour stocker et accéder à vos données personnelles.</p>
+<button id="set">Paramétrer<span hidden>: Configurer vos consentements</span></button>
+<button id="no" aria-label="Je n'accepte rien: Refuser notre traitement des données et fermer">Je n'accepte rien</button>
+<button id="yes" aria-label="J'accepte tout: Accepter notre traitement des données et fermer">J'accepte tout</button>
+</div></div>
+<script>let consent=null;
+no.onclick=()=>{consent='refused';wall.remove()}; yes.onclick=()=>{consent='accepted';wall.remove()};
+f.onsubmit=e=>{e.preventDefault();window.__result=consent+'|'+q.value;document.title='Résultats '+q.value;
+document.body.insertAdjacentHTML('beforeend','<h2>12 recettes pour '+q.value+'</h2>')};</script>
+</body></html>

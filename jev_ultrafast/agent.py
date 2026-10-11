@@ -1,11 +1,12 @@
 """The complete agent loop. Typed choices, observable state, bounded execution."""
 
 import base64
+import threading
 import time
 from pathlib import Path
 
 from .browser import Browser, StalePage
-from .model import action_space, choose, field_context, field_text
+from .model import action_space, choose, field_context, field_text, warm_up
 from .questions import MAX_STEPS
 
 
@@ -18,6 +19,8 @@ class Agent:
         self.pending_text = None
         # text_fn(context) -> (text, helper) replaces the text LLM, e.g. with caller-supplied values.
         self.text_fn = text_fn
+        # Open the TLS connection to Jev while the page loads: the first decision then skips the handshake.
+        threading.Thread(target=warm_up, daemon=True).start()
         self.browser = Browser(url, target=target)
         self.record_dir = Path(record_dir) if record_dir else None
         self.screenshots = screenshots or bool(record_dir)
@@ -70,7 +73,10 @@ class Agent:
                 raise ValueError("Start a demo first")
             if state["started_at"] is None:
                 state["started_at"] = time.perf_counter()
-            if not state["browser"].fresh(state["page"]):
+            # A page read a moment ago needs no second full read to prove it is current: the act-time check of the
+            # chosen control still catches a change.
+            if time.perf_counter() - vars(state["browser"]).get("read_at", 0) > 0.15 and \
+                    not state["browser"].fresh(state["page"]):
                 state["page"] = state["browser"].observe(screenshot=self.screenshots)
             state["decision"] = None
             if state["status"] in {"done", "blocked"}:
@@ -80,6 +86,8 @@ class Agent:
             # An "Open X" just clicked on a field is not offered again until something else happens: the model then
             # fills the field or picks in what opened, instead of clicking it again and again.
             view = state["page"]
+            if getattr(self, "banned", None):  # controls the caller saw looping: Jev is not offered them again
+                view = {**view, "actions": [a for a in view["actions"] if a["label"] not in self.banned]}
             if getattr(self, "opened", None):
                 view = {**view, "actions": [a for a in view["actions"]
                                             if not (a.get("node") in self.opened and a["label"].startswith("Open "))]}

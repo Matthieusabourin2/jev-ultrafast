@@ -1,0 +1,21 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Billets de train</title>
+<style>body{font:15px sans-serif;margin:30px}#veil{position:fixed;inset:0;background:#0006}
+.ot{position:fixed;left:15%;right:15%;top:15%;background:#fff;padding:24px}.ot button{margin:6px}#prefs{display:none}</style></head><body>
+<h1>Billets de train</h1>
+<form id="f"><label for="q">Gare de départ</label> <input id="q" name="q"> <button>Rechercher</button></form>
+<div id="veil"></div>
+<div class="ot" id="first" role="dialog" aria-label="Confidentialité"><h2>Nous prenons à coeur de protéger vos données</h2>
+<p>Notre organisation et ses 115 partenaires stockent des cookies. Vous pouvez accepter ou gérer vos préférences.</p>
+<a href="#">Liste de nos partenaires (fournisseurs)</a><br>
+<button id="more">Afficher toutes les finalités</button> <button id="yes">J'accepte</button></div>
+<div class="ot" id="prefs" role="dialog" aria-label="Préférences"><h2>Centre de préférences de confidentialité</h2>
+<p>Gérez vos choix de cookies par finalité.</p>
+<label><input type="checkbox" checked disabled> Strictement nécessaires</label><br>
+<label><input type="checkbox" id="ana"> Mesure d'audience</label><br>
+<button id="no">Tout refuser</button> <button id="save">Confirmer mes choix</button> <button id="all">Tout autoriser</button></div>
+<script>let consent=null; const close=c=>{consent=c;first.remove();prefs.remove();veil.remove()};
+more.onclick=()=>{first.style.display='none';prefs.style.display='block'};
+yes.onclick=()=>close('accepted'); all.onclick=()=>close('accepted'); no.onclick=()=>close('refused'); save.onclick=()=>close(ana.checked?'partial':'refused');
+f.onsubmit=e=>{e.preventDefault();if(document.getElementById('veil'))return;window.__result=consent+'|'+q.value;document.title='Résultats';
+document.body.insertAdjacentHTML('beforeend','<h2>Trains au départ de '+q.value+'</h2>')};</script>
+</body></html>
