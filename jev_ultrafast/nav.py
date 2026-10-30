@@ -26,10 +26,13 @@ SECRET = re.compile(
     r"tarjeta|iban|ssn|\bpin\b|user.?name|usuario|login|identifiant|dni|nif",
     re.I,
 )
-
-
+# A "code" named by one of these purposes is ordinary; any other code (bare, recovery, access, mfa...) stays a secret.
 ORDINARY_KEY = re.compile(r"\b(postal|zip|promo|coupon|discount|ape|naf|commune|insee|client|customer|article|"
-                          r"product|produit|country|pays)\b", re.I)
+                          r"product|produit|country|pays|slido|event|[ée]v[ée]nement|participation|participant|quiz|"
+                          r"room|salle|pr[ée]sentation|meeting|r[ée]union|webinar|invitation|voucher|gift|cadeau|"
+                          r"referral|parrainage|vat|tva|booking|r[ée]servation|order|commande|tracking|suivi)\b", re.I)
+# Qualifiers that make a "code" a one-time or security code; same list as the live field check (CREDENTIAL_JS).
+SECRET_CODE = re.compile(r"\b(sms|re[çc]u|received|sent|envoy|v[ée]rif|s[ée]cur|auth|activation|confirm)", re.I)
 
 
 def key_words(key):
@@ -38,11 +41,13 @@ def key_words(key):
 
 
 def secret_key(key):
-    """A value key that names a secret. A plain "code" qualified as ordinary (postal_code, code_ape) is not one."""
+    """A value key that names a secret. A "code" named by an ordinary purpose (postal_code, slido_code,
+    code_participation) is not one, unless something else in it names a secret (event_sms_code)."""
     words = key_words(key)
     if not SECRET.search(words):
         return False
-    return not (ORDINARY_KEY.search(words) and not SECRET.search(re.sub(r"\bcode\b", "", words, flags=re.I)))
+    rest = re.sub(r"\bcode\b", "", words, flags=re.I)
+    return not (ORDINARY_KEY.search(words) and not SECRET.search(rest) and not SECRET_CODE.search(rest))
 # Stop before clicks that commit money, delete, reach other people, publish, sign up or grant access. Reversible
 # edits (save, update, add, archive, rename) and choices in a list go through: a user can undo them.
 IRREVERSIBLE = re.compile(

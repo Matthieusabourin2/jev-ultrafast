@@ -88,9 +88,19 @@ def test_secret_keys_refused_after_word_split(key):
     assert nav.secret_key(key)
 
 
-@pytest.mark.parametrize("key", ["postal_code", "promoCode", "code_ape", "client_code", "zip-code"])
+@pytest.mark.parametrize("key", ["postal_code", "promoCode", "code_ape", "client_code", "zip-code", "slido_code",
+                                 "slidoCode", "event_code", "participation_code", "code_participation", "code_slido",
+                                 "presentation_code", "code_evenement", "quiz_code", "room_code"])
 def test_ordinary_code_keys_allowed(key):
     assert not nav.secret_key(key)
+
+
+@pytest.mark.parametrize("key", ["security_code", "auth_code", "confirmation_code", "code_de_verification",
+                                 "code_recu", "code_sms", "Code", "event_sms_code", "mfa_code", "one_time_code",
+                                 "recovery_code", "backup_code", "access_code", "code_acces", "code_validation",
+                                 "code_connexion", "email_code", "code_1", "reset_code"])
+def test_security_code_keys_refused(key):
+    assert nav.secret_key(key)
 
 
 def test_value_named_by_the_field_needs_no_model_call(monkeypatch):
