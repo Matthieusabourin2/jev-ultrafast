@@ -419,3 +419,20 @@ def test_block_all_and_colon_tails_confirm():
         assert commits(name), name
     for name in ["Refuser la proposition", "Refuser la mission", "Decline proposal"]:
         assert commits(name), name
+
+
+def test_two_scrolls_that_moved_nothing_stop():
+    still = {"kind": "scroll", "moved": False, "page_changed": False}
+    assert nav.no_scroll_moved([still, {"kind": "wait"}, still])
+    assert not nav.no_scroll_moved([still])
+    assert not nav.no_scroll_moved([still, {**still, "moved": True}])
+    # A map or a canvas changes the page without scrolling anything: not stuck.
+    assert not nav.no_scroll_moved([still, {**still, "page_changed": True}])
+    assert not nav.no_scroll_moved([still, {"kind": "click"}, still][-2:] + [{"kind": "click"}])
+
+
+def test_scrolling_down_and_up_again_is_a_loop():
+    down, up = {"kind": "scroll", "action": "Scroll down the right panel"}, {"kind": "scroll", "action": "Scroll up"}
+    assert nav.seesaw([down, up, down, {"kind": "wait"}, up, down, up])
+    assert not nav.seesaw([down] * 8 + [up])  # reading to the end, then back once
+    assert not nav.seesaw([down, up, down, {"kind": "click", "action": "Next"}, up, down])

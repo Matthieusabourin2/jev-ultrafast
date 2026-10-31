@@ -131,7 +131,7 @@ class Agent:
                     self.pending_text = (context, text, helper)
                     state["text_calls"].append({**helper, "field": action["label"], "value": text})
             # Browser.act checks freshness immediately before input, including after text generation.
-            state["browser"].act(action, page, text=text)
+            result = state["browser"].act(action, page, text=text)
             self.opened = {action["node"]} if action["label"].startswith("Open ") else set()
             self.pending_text = None
             state["elapsed_ms"] = round((time.perf_counter() - state["started_at"]) * 1000)
@@ -157,6 +157,8 @@ class Agent:
                     "elapsed_ms": state["elapsed_ms"],
                 }
             )
+            if action["kind"] == "scroll" and isinstance(result, dict) and "positions" in result:
+                state["history"][-1]["moved"] = state["browser"].moved(result["positions"])
             state["page"] = state["browser"].observe(screenshot=self.screenshots)
             state["elapsed_ms"] = round((time.perf_counter() - state["started_at"]) * 1000)
             state["history"][-1].update(

@@ -24,6 +24,11 @@ WAIT = """new Promise(resolve => {
   quiet=setTimeout(done,300); const cap=setTimeout(done,1000);
 })"""
 
+# Where everything a wheel can move stands: the window and the panels the snapshot offered to scroll.
+SCROLL_POSITIONS = """(() => [scrollX, scrollY, ...(window.__jevFast?.scrollers || [])
+  .map(e => !e.isConnected ? -1 : e === e.ownerDocument.scrollingElement ? e.ownerDocument.defaultView.scrollY :
+    e.scrollTop)
+].join(','))()"""
 
 
 class AllowNeeded(RuntimeError):
@@ -165,6 +170,17 @@ class Browser:
         self.after_input = action if action["kind"] != "wait" else None
         return result
 
+    def moved(self, before):
+        """Whether a wheel moved the window or a panel. Wheel scrolling is asynchronous and often smooth: look for
+        up to 0.3 s. None when the page could not be read (it navigated, which is a change of its own)."""
+        deadline = time.monotonic() + 0.3
+        try:
+            while (now := self.evaluate(SCROLL_POSITIONS)) == before and time.monotonic() < deadline:
+                time.sleep(0.05)
+        except Exception:  # noqa: BLE001 - only an observation; the scroll is already logged
+            return None
+        return now != before
+
     def close(self):
         if self.target:
             cdp("Target.closeTarget", targetId=self.target)
@@ -228,8 +244,11 @@ def browser_operation(request):
         action = request["action"]
         kind = action["kind"]
         if kind == "scroll":
+            # Whether it moved anything is checked later (Browser.moved), after the scroll is logged.
+            before = evaluate(SCROLL_POSITIONS)
             call("Input.dispatchMouseEvent", type="mouseWheel", x=action.get("x", 550), y=action.get("y", 650),
                  deltaX=0, deltaY=action["delta"])
+            return {"executed": action["id"], "positions": before}
         elif kind != "wait":
             if type(action["node"]) is not int:
                 raise ValueError("Invalid observed node")

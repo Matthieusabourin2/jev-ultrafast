@@ -199,6 +199,23 @@ REPEATABLE = re.compile(r"\b(next|suivant|suivante|previous|pr[ée]c[ée]dent\w*
                         re.I)
 
 
+def no_scroll_moved(history):
+    """The last two scrolls, waits aside, moved nothing and changed nothing (a map or a canvas changes the page
+    without scrolling): no panel or page is left to scroll."""
+    last = [h for h in history if h.get("kind") != "wait"][-2:]
+    return len(last) == 2 and all(h.get("kind") == "scroll" and h.get("moved") is False and
+                                  h.get("page_changed") is False for h in last)
+
+
+def seesaw(history):
+    """Scrolling down and up again and again (what Jev wants does not fit on one screen): a loop. Its text, panels
+    included, is in the result."""
+    last = [h for h in history if h.get("kind") != "wait"][-6:]
+    ups = [h["action"].startswith("Scroll up") for h in last]
+    return len(last) == 6 and all(h.get("kind") == "scroll" for h in last) and \
+        sum(x != y for x, y in zip(ups, ups[1:])) >= 3
+
+
 def repeating(labels):
     """The label pressed 4 times in the last 6 actions (scrolls and waits aside), unless it is made to repeat."""
     recent = labels[-6:]
@@ -278,6 +295,43 @@ OWNED = """(node => {
   if (!lists.length) return null;
   return lists.flatMap(l=>[...l.querySelectorAll('[role="option"]')]).map(o=>c.ids.get(o)).filter(Boolean);
 })"""
+# The text returned to the caller (Jev itself only sees the screen): what is on screen first, then what panels on
+# screen hold beyond their visible part and the whole text of same-origin frames. A
+# cross-origin frame cannot be read; it is counted instead. So a request to read needs no scrolling.
+READ_ALL = r"""(() => {
+  const clean=s=>(s||'').replace(/[\ue000-\uf8ff]/g,'').replace(/\s+/g,' ').trim();
+  const seen=[], beyond=[]; let length=0, unread=0;
+  const meets=(r,box)=>r.width>0 && r.height>0 && r.bottom>box.top && r.top<box.bottom &&
+    r.right>box.left && r.left<box.right;
+  const read=(doc,box,whole)=>{
+    const view=doc.defaultView, range=doc.createRange();
+    const panes=whole ? [] : [...doc.body.querySelectorAll('*')].filter(e=>e.scrollHeight>e.clientHeight+2 &&
+      /(auto|scroll)/.test(view.getComputedStyle(e).overflowY) && meets(e.getBoundingClientRect(),box) &&
+      e.checkVisibility({checkVisibilityCSS:true}));
+    const walker=doc.createTreeWalker(doc.body,NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT); let node;
+    while ((node=walker.nextNode()) && length<20000) {
+      if (node.nodeType===1) {
+        if (node.tagName!=='IFRAME') continue;
+        const r=node.getBoundingClientRect(); let inner=null;
+        if (!meets(r,box) || !node.checkVisibility({checkVisibilityCSS:true})) continue;
+        try { inner=node.contentDocument; } catch {}
+        if (inner?.body) read(inner,box,true);
+        else if (r.width*r.height>=innerWidth*innerHeight/6) unread++;  // not an ad or a tracker
+        continue;
+      }
+      const value=clean(node.textContent), parent=node.parentElement;
+      if (!value || !parent || parent.closest('script,style,noscript,template,[aria-hidden="true"],[inert]') ||
+          !parent.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) continue;
+      if (/^(1password|bitwarden|lastpass|dashlane)\b.{0,60}(available|disponible)/i.test(value)) continue;
+      range.selectNodeContents(node);
+      const onScreen=!whole && meets(range.getBoundingClientRect(),box);
+      if (!onScreen && !whole && !panes.some(p=>p.contains(node))) continue;
+      (onScreen ? seen : beyond).push(value); length+=value.length;
+    }
+  };
+  read(document,{left:0,top:0,right:innerWidth,bottom:innerHeight},false);
+  return {text:[...seen,...beyond].join('\n'), unread};
+})()"""
 STATE_DIR = Path.home() / ".cache" / "jevnav"
 JOURNAL_DIR = Path.home() / ".claude" / "jev-journal" / "nav"
 
@@ -736,6 +790,7 @@ def run(args):
     goal, nudged, nudged_consent, directed, picked_days, banned = state["goal"], set(), 0, set(), set(), set()
     last_fill = None
     cycle, auto_scrolls, stale, unsure_waits, just_typed, replays, pressed = [], 0, 0, 0, None, {}, []
+    unmoved = set()  # (url, scroll id) whose wheel moved nothing, until a scroll moves again
     confirm = args.confirm
     try:
         while state["status"] not in {"done", "blocked"}:
@@ -818,11 +873,17 @@ def run(args):
                     decision["probabilities"] = {**decision.get("probabilities", {}), "wait": 0.0}
                 # Jev tends to answer BLOCKED when the target sits below the visible area. While the page or its
                 # panel can still scroll, look further before giving up.
-                if decision["choice"] == "BLOCKED" and auto_scrolls < 8 and \
-                        any(a["id"] == "scroll_down" for a in state["page"]["actions"]):
+                # With several panels, the next one once a wheel over the current one moved nothing.
+                further = next((a["id"] for a in state["page"]["actions"] if a["id"].startswith("scroll_down") and
+                                (state["page"]["url"], a["id"]) not in unmoved), None)
+                if decision["choice"] == "BLOCKED" and auto_scrolls < 8 and further:
                     auto_scrolls += 1
-                    decision["choice"] = "scroll_down"
-                    decision["probabilities"] = {**decision.get("probabilities", {}), "scroll_down": 0.0}
+                    decision["choice"] = further
+                    decision["probabilities"] = {**decision.get("probabilities", {}), further: 0.0}
+                elif decision["choice"] == "BLOCKED" and any(a["kind"] == "scroll" and
+                                                             (state["page"]["url"], a["id"]) in unmoved
+                                                             for a in state["page"]["actions"]):
+                    raise Stop("blocked", reason="no scrollable container moved")
                 # A DONE, or a wait, right after a picker closed (its "Done" reads like a search) is premature
                 # while the search it feeds was never launched.
                 if decision["choice"] in {"DONE", "wait"}:
@@ -948,6 +1009,16 @@ def run(args):
                     if len(state["history"]) > steps and action and confirm and confirm.lower() in label.lower() and \
                             (commits(own) or generic):
                         confirm = None
+                if action and action["kind"] == "scroll" and len(state["history"]) > steps:
+                    if state["history"][-1].get("moved") is False:
+                        unmoved.add((url_before, action["id"]))
+                    elif state["history"][-1].get("moved"):
+                        unmoved.clear()
+                    if no_scroll_moved(state["history"]):
+                        raise Stop("blocked", reason="no scrollable container moved")
+                    if seesaw(state["history"]):
+                        raise Stop("blocked", reason="loop",
+                                   actions=sorted({h["action"] for h in state["history"][-6:]}))
                 if action and len(state["history"]) > steps:  # only right after typing
                     last_fill = action["node"] if action["kind"] == "fill" else None
                 if action and action["kind"] == "click":
@@ -1034,6 +1105,10 @@ def run(args):
     status = status or state["status"]
     page = state["page"]
     history = [{k: h.get(k) for k in ("action", "kind", "text", "page_changed")} for h in state["history"]]
+    try:
+        everything = browser.evaluate(READ_ALL)
+    except Exception:  # noqa: BLE001 - a page navigating away: return what was last seen
+        everything = None
     result = {
         "status": status,
         **info,
@@ -1043,11 +1118,13 @@ def run(args):
         "actions": [h["action"] + (f" ← {h['text']!r}" if h.get("text") else "") for h in history],
         "url": page["url"],
         "title": page["title"],
-        "text": page["text"][: args.text_chars],
+        "text": (everything["text"] if everything else page["text"])[: args.text_chars],
         "target": browser.target,
         "steps": len(state["history"]) - len(saved.get("history", [])),
         "jev_input_tokens": chooser.input_tokens + sum(d.get("usage", {}).get("input_tokens", 0) for d in state["decisions"]),
     }
+    if everything and everything["unread"]:
+        result["unread_frames"] = everything["unread"]  # embedded frames from another site: their text is missing
     if status in {"done", "blocked"} and args.close:
         agent.close()
         result["target"] = None

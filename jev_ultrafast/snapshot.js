@@ -246,16 +246,29 @@
     const context=clean(row?.innerText).replace(a.label,'').trim().slice(0,60);
     if (context) { a.base=a.label; a.label+=' · '+context; }
   }
-  const words=[], walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
-  const range=document.createRange(); let node,length=0;
-  while ((node=walker.nextNode()) && length<6000) {
-    const value=clean(node.textContent), parent=node.parentElement;
-    if (!value || !parent || parent.closest('script,style,noscript,template') || !visible(parent)) continue;
-    if (/^(1password|bitwarden|lastpass|dashlane)\b.{0,60}(available|disponible)/i.test(value)) continue;  // extension overlay
-    range.selectNodeContents(node); const r=range.getBoundingClientRect();
-    if (r.width>0 && r.height>0 && r.bottom>0 && r.top<innerHeight && r.right>0 && r.left<innerWidth) {
-      words.push(value); length+=value.length;
+  const words=[]; let length=0;
+  // Text on screen, then the on-screen part of same-origin frames (box: what shows of the frame, in its own
+  // coordinates). Cross-origin frames cannot be read.
+  const readText=(doc,box)=>{
+    const walker=doc.createTreeWalker(doc.body,NodeFilter.SHOW_TEXT), range=doc.createRange(); let node;
+    while ((node=walker.nextNode()) && length<6000) {
+      const value=clean(node.textContent), parent=node.parentElement;
+      if (!value || !parent || parent.closest('script,style,noscript,template') || !visible(parent)) continue;
+      if (/^(1password|bitwarden|lastpass|dashlane)\b.{0,60}(available|disponible)/i.test(value)) continue;  // extension overlay
+      range.selectNodeContents(node); const r=range.getBoundingClientRect();
+      if (r.width>0 && r.height>0 && r.bottom>box.top && r.top<box.bottom && r.right>box.left && r.left<box.right) {
+        words.push(value); length+=value.length;
+      }
     }
+  };
+  readText(document,{left:0,top:0,right:innerWidth,bottom:innerHeight});
+  if (!modal) for (const f of document.querySelectorAll('iframe')) {
+    let doc=null; try { doc=f.contentDocument; } catch {}
+    const r=f.getBoundingClientRect();
+    if (!doc?.body || !visible(f) || r.bottom<=0 || r.top>=innerHeight || r.right<=0 || r.left>=innerWidth) continue;
+    const view=doc.defaultView;
+    readText(doc,{left:Math.max(0,-r.left),top:Math.max(0,-r.top),right:Math.min(view.innerWidth,innerWidth-r.left),
+      bottom:Math.min(view.innerHeight,innerHeight-r.top)});
   }
   const text=words.join('\n').slice(0,6000), height=document.documentElement.scrollHeight;
   const page_key=cache.pageKey(), guards={}, dialogs={}, boxes=new Map();
@@ -279,25 +292,82 @@
   actions.forEach((a,i)=>a.id='e'+(i+1));
   // Web apps often keep the document still and scroll a panel (<main>, a list): scroll the largest such panel
   // when it covers at least half the viewport, else the document.
+  const scrolls=e=>e.scrollHeight>e.clientHeight+2 && e.clientHeight>=60 && /(auto|scroll)/.test(getComputedStyle(e).overflowY);
+  const shown=(r,box)=>Math.max(0,Math.min(r.right,box.right)-Math.max(r.left,box.left))*
+    Math.max(0,Math.min(r.bottom,box.bottom)-Math.max(r.top,box.top));
+  const screen={left:0,top:0,right:innerWidth,bottom:innerHeight};
   let pane=null, area=0, popup=false;
+  const panes=[];
   for (const e of document.body.querySelectorAll('main,section,div,ul,form,dialog,[role]')) {
-    if (e.scrollHeight<=e.clientHeight+2 || e.clientHeight<60 || !/(auto|scroll)/.test(getComputedStyle(e).overflowY) ||
-        !inModal(e) || !visible(e)) continue;
-    const r=e.getBoundingClientRect(), a=Math.max(0,Math.min(r.right,innerWidth)-Math.max(r.left,0))*
-      Math.max(0,Math.min(r.bottom,innerHeight)-Math.max(r.top,0)), inPopup=!!e.closest(POPUP);
+    if (!scrolls(e) || !inModal(e) || !visible(e)) continue;
+    const r=e.getBoundingClientRect(), a=shown(r,screen), inPopup=!!e.closest(POPUP);
+    if (a>0) panes.push({e,r,a,inPopup});
     if (a>0 && (inPopup && !popup || inPopup===popup && a>area)) { pane=e; area=a; popup=inPopup; }
   }
+  const DOWN='Scroll down to reveal elements and text below the visible area';
   if (pane && (popup || area>=innerWidth*innerHeight/2)) {
     const r=pane.getBoundingClientRect(), x=Math.max(r.left,0)+Math.min(r.width,innerWidth)/2,
       y=Math.max(r.top,0)+Math.min(r.height,innerHeight)/2;
     if (pane.scrollTop+pane.clientHeight<pane.scrollHeight-2)
-      actions.push({id:'scroll_down',kind:'scroll',label:'Scroll down to reveal elements and text below the visible area',delta:Math.round(pane.clientHeight*0.8),x,y});
+      actions.push({id:'scroll_down',kind:'scroll',label:DOWN,delta:Math.round(pane.clientHeight*0.8),x,y});
     if (pane.scrollTop>0) actions.push({id:'scroll_up',kind:'scroll',label:'Scroll up',delta:-Math.round(pane.clientHeight*0.8),x,y});
   } else {
-    if (scrollY+innerHeight<height-2) actions.push({id:'scroll_down',kind:'scroll',label:'Scroll down to reveal elements and text below the visible area',delta:560});
+    pane=null;
+    if (scrollY+innerHeight<height-2) actions.push({id:'scroll_down',kind:'scroll',label:DOWN,delta:560});
     if (scrollY>0) actions.push({id:'scroll_up',kind:'scroll',label:'Scroll up',delta:-560});
   }
+  // Other panels (a side list next to the main pane) and same-origin frames each get their own scroll, at most
+  // 3, named by their label or title (never by their content, which changes as they scroll). Outside a modal
+  // only, and from a twelfth of the viewport, so that small boxes (a carousel, a menu) add no choice.
+  // Their positions join the fingerprint: a panel scrolling changes the page even when the text read does not.
+  const tops=[], big=innerWidth*innerHeight/12;
+  if (!modal) {
+    for (const f of document.querySelectorAll('iframe')) {
+      const fr=f.getBoundingClientRect(); let doc=null;
+      try { doc=f.contentDocument; } catch {}
+      if (!doc?.body || shown(fr,screen)<big || !visible(f)) continue;
+      const own={left:fr.left,top:fr.top,right:fr.right,bottom:fr.bottom}, view=doc.defaultView,
+        dx=fr.left+f.clientLeft, dy=fr.top+f.clientTop;
+      const inner=[doc.scrollingElement, ...doc.body.querySelectorAll('main,section,div,ul,[role]')];
+      for (const e of inner) {
+        if (!e || !(e===doc.scrollingElement ? e.scrollHeight>view.innerHeight+2 : scrolls(e) && visible(e))) continue;
+        const ir=e===doc.scrollingElement ? {left:0,top:0,right:view.innerWidth,bottom:view.innerHeight} : e.getBoundingClientRect();
+        const r={left:dx+ir.left,top:dy+ir.top,right:dx+ir.right,bottom:dy+ir.bottom};
+        const a=shown(r,{left:Math.max(0,own.left),top:Math.max(0,own.top),right:Math.min(innerWidth,own.right),
+          bottom:Math.min(innerHeight,own.bottom)});
+        if (a>0) panes.push({e,r,a,frame:f});
+      }
+    }
+    const nameOf=p=>{
+      const e=p.e, by=(e.getAttribute?.('aria-labelledby')||'').split(/\s+/).map(id=>e.ownerDocument.getElementById(id)?.innerText).join(' ');
+      // A title just above the panel, or as its first child: fixed, unlike the headings of its items.
+      const HEAD='h1,h2,h3,h4,legend,[role="heading"]', head=[e.previousElementSibling,e.firstElementChild]
+        .find(h=>h?.matches?.(HEAD));
+      const named=clean(e.getAttribute?.('aria-label')||by||head?.innerText||'').slice(0,60);
+      const frame=p.frame && clean(p.frame.title||p.frame.getAttribute('aria-label')||p.frame.name||'').slice(0,60);
+      return p.frame ? (named ? `"${named}" panel in the embedded frame${frame?` "${frame}"`:''}` : `embedded frame${frame?` "${frame}"`:''}`)
+        : named ? `"${named}" panel` : `${(p.r.left+p.r.right)/2<innerWidth/3 ? 'left' : (p.r.left+p.r.right)/2>innerWidth*2/3 ? 'right' : 'middle'} panel`;
+    };
+    const others=panes.filter(p=>p.e!==pane && !p.inPopup && p.a>=big &&
+        !panes.some(q=>q!==p && q.e!==pane && q.frame===p.frame && q.e.contains?.(p.e) && q.a>=p.a))
+      .sort((a,b)=>b.a-a.a).slice(0,3);
+    let k=1;
+    for (const p of others) {
+      tops.push(Math.round(p.e.scrollTop));
+      const e=p.e, x=Math.max(p.r.left,0)+(Math.min(p.r.right,innerWidth)-Math.max(p.r.left,0))/2,
+        y=Math.max(p.r.top,0)+(Math.min(p.r.bottom,innerHeight)-Math.max(p.r.top,0))/2, step=Math.round(e.clientHeight*0.8);
+      const down=e.scrollTop+e.clientHeight<e.scrollHeight-2, up=e.scrollTop>0;
+      if (!down && !up) continue;
+      // With nothing else to scroll, the largest panel takes the plain ids, so a BLOCKED still looks further.
+      const plain=!actions.some(a=>a.kind==='scroll'), suffix=plain ? '' : '_'+(++k), name=nameOf(p);
+      if (down) actions.push({id:'scroll_down'+suffix,kind:'scroll',label:`Scroll down the ${name} to reveal what is below`,delta:step,x,y});
+      if (up) actions.push({id:'scroll_up'+suffix,kind:'scroll',label:`Scroll up the ${name}`,delta:-step,x,y});
+    }
+    cache.scrollers=others.map(p=>p.e);
+  } else cache.scrollers=[];
+  // What a wheel can move: the executor compares these before and after, instead of every element of the page.
+  if (pane) cache.scrollers.unshift(pane);
   actions.push({id:'wait',kind:'wait',label:'Wait for the page to update'});
   return {url:location.href,title:document.title,w:innerWidth,h:innerHeight,text,
-    scroll:{y:scrollY,height},actions,marker,page_key,guards,dialogs,omitted_actions};
+    scroll:{y:scrollY,height,...(tops.length?{panes:tops}:{})},actions,marker,page_key,guards,dialogs,omitted_actions};
 })()
