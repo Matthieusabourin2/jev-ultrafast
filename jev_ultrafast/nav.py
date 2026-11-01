@@ -7,12 +7,14 @@ A click whose label looks irreversible stops with status "confirm" unless the ca
 
 import argparse
 import json
+import math
 import os
 import re
 import signal
 import unicodedata
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -719,8 +721,10 @@ def wait_for_login(browser, wait_s, node, found):
             break
         last = (round(found["x"]), round(found["y"]))
     # A real click (not JS focus) is what makes the 1Password extension offer its inline menu.
-    for event in ("mousePressed", "mouseReleased"):
-        browser.call("Input.dispatchMouseEvent", type=event, x=found["x"], y=found["y"], button="left", clickCount=1)
+    with acting():  # never leave the button pressed
+        for event in ("mousePressed", "mouseReleased"):
+            browser.call("Input.dispatchMouseEvent", type=event, x=found["x"], y=found["y"], button="left",
+                         clickCount=1)
     subprocess.run(["osascript", "-e", 'display notification "Remplis avec 1Password, puis clique le bouton de connexion (Access, Se connecter…)" with title "jevnav : connexion"'],
                    check=False)
     deadline, clear_since = time.monotonic() + wait_s, None
@@ -739,7 +743,24 @@ def wait_for_login(browser, wait_s, node, found):
     raise Stop("login_timeout", field_count=found["count"])
 
 
-ALARM = {"acting": False, "expired": False}
+ALARM = {"acting": 0, "expired": False, "stop": threading.Lock()}
+
+
+class acting:
+    """Marks a mutation in progress (press to release, act to recorded): the deadline alarm and the watchdog wait
+    for it to finish. Nests."""
+
+    def __enter__(self):
+        with ALARM["stop"]:  # held for good once the watchdog answers: no click starts that it would cut in half
+            ALARM["acting"] += 1
+
+    def __exit__(self, *_):
+        ALARM["acting"] -= 1
+
+
+class Deadline(BaseException):
+    """The --deadline alarm. Not an Exception: the `except Exception` clauses that tolerate a page navigating away
+    must not swallow it and leave the run going."""
 
 
 def deadline_reached(_signum, _frame):
@@ -747,13 +768,13 @@ def deadline_reached(_signum, _frame):
     if ALARM["acting"]:
         ALARM["expired"] = True
         return
-    raise Stop("in_progress", reason="deadline")
+    raise Deadline
 
 
 def run(args):
     if args.deadline:
         signal.signal(signal.SIGALRM, deadline_reached)
-        signal.alarm(int(args.deadline))
+        signal.alarm(max(1, math.ceil(args.deadline)))
     values = json.loads(args.values) if args.values else {}
     refused = [k for k in values if secret_key(k)]
     if refused:
@@ -772,11 +793,8 @@ def run(args):
     raw_act = browser.act
 
     def guarded_act(*a, **k):  # the deadline alarm may not cut a click or a keystroke in half
-        ALARM["acting"] = True
-        try:
+        with acting():
             return raw_act(*a, **k)
-        finally:
-            ALARM["acting"] = False
 
     browser.act = guarded_act
     browser.commits = commits  # fresh() refuses a control whose name grew into a committing one
@@ -998,7 +1016,8 @@ def run(args):
                 lines_before = set(state["page"].get("text", "").splitlines())
                 browser.strict = bool(action and action["kind"] in {"click", "select"} and (commits(own) or generic))
                 try:
-                    agent.command("act", {"fingerprint": state["page"]["fingerprint"]})
+                    with acting():  # until the action is in the history, so a resume never repeats it
+                        agent.command("act", {"fingerprint": state["page"]["fingerprint"]})
                 except ValueError as e:
                     if "No single option" in str(e) or "not a number" in str(e):  # the value fits no list or counter
                         raise Stop("need_value", field=label, reason=str(e)) from None
@@ -1097,6 +1116,8 @@ def run(args):
                     pass
     except Stop as stop:
         status, info = stop.status, stop.info
+    except Deadline:
+        status, info = "in_progress", {"reason": "deadline"}
     except Exception as e:  # noqa: BLE001 - keep the target and state so the caller can resume
         status, info = "error", {"error": f"{type(e).__name__}: {e}"}
         if os.environ.get("JEVNAV_TRACE"):
@@ -1130,8 +1151,10 @@ def run(args):
         result["target"] = None
     else:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
-        (STATE_DIR / f"{browser.target}.json").write_text(
+        path = STATE_DIR / f"{browser.target}.json"  # written whole or not at all: the watchdog may exit anytime
+        path.with_suffix(".tmp").write_text(
             json.dumps({"goal": args.goal, "status": status, "history": history, "typed": typed}))
+        os.replace(path.with_suffix(".tmp"), path)
     return result
 
 
@@ -1150,6 +1173,38 @@ def log(args, result):
         pass  # the journal must never break a run
 
 
+ANSWER = {"lock": threading.Lock(), "given": False}
+
+
+def answer(args, result):
+    """Log and print the one JSON result of this run; the first caller wins (the run or the watchdog)."""
+    with ANSWER["lock"]:
+        if ANSWER["given"]:
+            return False
+        ANSWER["given"] = True
+        log(args, result)
+        print(json.dumps(result, ensure_ascii=False), flush=True)
+        return True
+
+
+def watchdog(args, seconds):
+    """A hard stop that no except clause can swallow: if the run has not answered after `seconds` (a CDP call or a
+    page that never returns), answer for it and leave."""
+    def fire():
+        ALARM["stop"].acquire()  # never released: the process exits below
+        for _ in range(50):  # let a click or keystroke in progress finish (5 s at most)
+            if not ALARM["acting"]:
+                break
+            time.sleep(0.1)
+        if answer(args, {"status": "error", "error": f"no answer within {seconds:g} s (watchdog)"}):
+            os._exit(1)
+
+    timer = threading.Timer(seconds, fire)
+    timer.daemon = True
+    timer.start()
+    return timer
+
+
 def main():
     p = argparse.ArgumentParser(prog="jevnav", description=__doc__)
     p.add_argument("--goal", required=True)
@@ -1160,21 +1215,29 @@ def main():
     p.add_argument("--close", action="store_true", help="close the tab when done or blocked")
     p.add_argument("--budget", type=float, default=90, help="seconds of navigation before returning in_progress")
     p.add_argument("--login-wait", type=float, default=120)
-    p.add_argument("--deadline", type=float, help="hard wall-clock limit in seconds; returns in_progress with the target")
+    p.add_argument("--deadline", type=float,
+                   help="wall-clock limit in seconds; returns in_progress with the target (default: budget + login "
+                        "wait + 30 s). A watchdog answers error JEVNAV_GRACE seconds later (15) if the run still hangs")
     p.add_argument("--text-chars", type=int, default=3000)
     args = p.parse_args()
     if not args.url and not args.target:
         p.error("--url or --target is required")
+    if args.deadline is None:
+        args.deadline = args.budget + args.login_wait + 30
+    watchdog(args, args.deadline + float(os.environ.get("JEVNAV_GRACE", 15)))
     try:
         result = run(args)
     except Stop as stop:
         result = {"status": stop.status, **stop.info}
+    except Deadline:  # reached while opening the tab: no target to resume
+        result = {"status": "error", "error": "deadline reached while opening the page"}
     except AllowNeeded as e:
         result = {"status": "allow_needed", "reason": str(e)}
     except Exception as e:  # noqa: BLE001 - the caller needs a JSON status, not a traceback
         result = {"status": "error", "error": f"{type(e).__name__}: {e}"}
-    log(args, result)
-    print(json.dumps(result, ensure_ascii=False))
+    signal.alarm(0)
+    if not answer(args, result):
+        time.sleep(60)  # the watchdog is answering and will exit
     sys.exit(0 if result["status"] in {"done", "confirm", "need_value", "in_progress"} else 1)
 
 

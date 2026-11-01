@@ -32,17 +32,18 @@ async def jevnav(goal: str, url: str | None = None, values: dict[str, str] | Non
     resume); allow_needed (tell the user to open Comet and click Allow, then call again); in_progress (resume with
     target); blocked or error (report)."""
     # Stay under the client's request timeout: nav stops itself at the deadline and still returns the target.
-    cmd = [sys.executable, "-m", "jev_ultrafast.nav", "--goal", goal, "--budget", "35", "--login-wait", "30",
-           "--deadline", "45"]
+    cmd = [sys.executable, "-m", "jev_ultrafast.nav", "--goal", goal, "--budget", "30", "--login-wait", "30",
+           "--deadline", "35"]
     for flag, value in (("--url", url), ("--target", target), ("--confirm", confirm)):
         if value:
             cmd += [flag, value]
     if values:
         cmd += ["--values", json.dumps(values)]
-    # A pending "Allow" must answer allow_needed well inside the 45 s deadline.
+    # A pending "Allow" must answer allow_needed well inside the 35 s deadline. The watchdog answers at most 45 s
+    # after the imports (grace 5, then 5 for a click in progress): under the 55 s kill even with a 7 s cold start.
     proc = await asyncio.create_subprocess_exec(*cmd, cwd=ROOT, stdout=asyncio.subprocess.PIPE,
                                                 stderr=asyncio.subprocess.PIPE,
-                                                env={**os.environ, "JEVNAV_ALLOW_WAIT": "20"})
+                                                env={**os.environ, "JEVNAV_ALLOW_WAIT": "20", "JEVNAV_GRACE": "5"})
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout=55)
     except TimeoutError:

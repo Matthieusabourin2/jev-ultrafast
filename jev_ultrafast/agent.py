@@ -26,7 +26,7 @@ class Agent:
         self.screenshots = screenshots or bool(record_dir)
         try:
             page = self.browser.observe(screenshot=self.screenshots)
-        except Exception:
+        except BaseException:  # the deadline alarm too: never leave an unnamed tab open
             if not target:  # never close a tab the caller asked to resume
                 self.browser.close()
             raise

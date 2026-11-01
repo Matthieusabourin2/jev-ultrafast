@@ -47,6 +47,8 @@ uv run --env-file .env jevnav --url https://en.wikipedia.org/wiki/Main_Page \
   --goal "Search Wikipedia for Alan Turing and open his article" --values '{"query":"Alan Turing"}' --close
 ```
 
+Chaque lancement rend une ligne JSON et écrit sa ligne au journal dans son délai : `--deadline` (par défaut budget + attente de connexion + 30 s) rend `in_progress`, et un chien de garde rend `error` 15 s plus tard si le run reste bloqué. Gardez le dépôt hors d'iCloud Drive (ou son `.venv` en lien vers un dossier local) : un disque presque plein fait évincer les fichiers, et chaque import les retélécharge pendant des minutes.
+
 Statuts : `done`, `need_value`, `confirm` (relancer avec `--confirm "<libellé>"` une fois l'accord de l'utilisateur obtenu), `login_timeout`, `allow_needed` (navigateur fermé ou clic **Allow** en attente), `in_progress`, `refused`, `blocked`, `error`. Le pas-à-pas complet, la règle pour Claude Code, le branchement MCP de Claude Desktop et le dépannage sont dans le [guide d'installation](docs/fr/installation.md).
 
 Vérifications : `uv run pytest -q tests` (tests unitaires), `uv run --env-file .env python examples/guards.py` (gardes d'identifiants dans le vrai navigateur), `uv run --env-file .env python bench/run.py --runs 3` (banc de performance).

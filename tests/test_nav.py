@@ -436,3 +436,89 @@ def test_scrolling_down_and_up_again_is_a_loop():
     assert nav.seesaw([down, up, down, {"kind": "wait"}, up, down, up])
     assert not nav.seesaw([down] * 8 + [up])  # reading to the end, then back once
     assert not nav.seesaw([down, up, down, {"kind": "click", "action": "Next"}, up, down])
+
+
+HANG = """import sys, time
+from jev_ultrafast import nav
+class Hang:  # a run stuck in a call that swallows errors (a CDP read retried forever, a page that never answers)
+    def __init__(self, *a, **k):
+        while True:
+            try:
+                time.sleep(0.05)
+            except {caught}:
+                pass
+nav.Agent = Hang
+sys.argv = ["jevnav", "--url", "about:blank", "--goal", "g", "--deadline", "1"]
+nav.main()
+"""
+
+
+@pytest.mark.parametrize("caught, error", [("Exception", "deadline reached"), ("BaseException", "watchdog")])
+def test_a_hung_run_still_answers_and_logs(tmp_path, caught, error):
+    import json
+    import os
+    import subprocess
+    import sys
+    import time
+
+    started = time.monotonic()
+    proc = subprocess.run([sys.executable, "-c", HANG.format(caught=caught)], capture_output=True, text=True,
+                          timeout=40, env={**os.environ, "HOME": str(tmp_path), "JEVNAV_GRACE": "1"})
+    assert time.monotonic() - started < 18  # imports can take seconds when the repo sits in iCloud Drive
+    lines = proc.stdout.strip().splitlines()
+    result = json.loads(lines[0])
+    assert len(lines) == 1 and result["status"] == "error" and error in result["error"] and proc.returncode == 1
+    journal = list((tmp_path / ".claude" / "jev-journal" / "nav").iterdir())
+    assert len(journal) == 1 and '"status": "error"' in journal[0].read_text()
+
+
+def test_the_watchdog_lets_a_click_in_progress_finish(monkeypatch):
+    import time
+
+    from jev_ultrafast import nav
+
+    import threading
+
+    events = []
+    monkeypatch.setattr(nav, "answer", lambda args, result: events.append(("answer", time.monotonic())) or True)
+    monkeypatch.setattr(nav.os, "_exit", lambda code: events.append(("exit", code)))
+    monkeypatch.setitem(nav.ALARM, "stop", threading.Lock())  # the watchdog keeps it: other tests get theirs back
+    with nav.acting():
+        with nav.acting():  # nested: the outer action still holds the watchdog
+            pass
+        assert nav.ALARM["acting"] == 1
+        nav.watchdog(None, 0.05)
+        time.sleep(0.4)
+        assert events == []
+        released = time.monotonic()
+    time.sleep(0.4)
+    assert nav.ALARM["acting"] == 0 and events[0][0] == "answer" and events[0][1] >= released
+    assert events[1] == ("exit", 1)
+    # Once the watchdog has answered, no new click starts (the process is about to exit).
+    assert not nav.ALARM["stop"].acquire(timeout=0.1)
+
+
+def test_a_tab_opened_for_a_run_is_closed_when_opening_fails(monkeypatch):
+    from jev_ultrafast import browser
+
+    calls = []
+
+    def cdp(method, session_id=None, **params):
+        calls.append(method)
+        if method == "Target.createTarget":
+            return {"targetId": "T1"}
+        if method == "Target.attachToTarget":
+            return {"sessionId": "S1"}
+        if method == "Page.navigate":
+            raise nav.Deadline  # the deadline alarm, while the page loads
+        return {}
+
+    monkeypatch.setattr(browser, "ensure_daemon", lambda wait: None)
+    monkeypatch.setattr(browser, "cdp", cdp)
+    with pytest.raises(nav.Deadline):
+        browser.Browser("https://example.com")
+    assert calls[-1] == "Target.closeTarget"
+    calls.clear()
+    with pytest.raises(nav.Deadline):
+        browser.Browser("https://example.com", target="T0")  # a resumed tab belongs to the caller: kept
+    assert "Target.closeTarget" not in calls

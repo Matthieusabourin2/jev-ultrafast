@@ -48,23 +48,31 @@ class Browser:
             raise AllowNeeded("The browser is closed or waits for its 'Allow' click (remote debugging).") from e
         # An existing target lets a caller resume the same tab across runs.
         self.target = target or cdp("Target.createTarget", url="about:blank", background=True)["targetId"]
-        self.session = cdp("Target.attachToTarget", targetId=self.target, flatten=True)["sessionId"]
-        self.call("Emulation.setDeviceMetricsOverride", width=1120, height=780, deviceScaleFactor=1, mobile=False)
-        # Keep rAF/menus rendering in an owned background tab, without activating the user's Chrome tab.
-        self.call("Emulation.setFocusEmulationEnabled", enabled=True)
-        if url:
-            try:
-                self.call("Page.navigate", url=url)
-            except Exception as e:  # noqa: BLE001 - a busy daemon times out once in a while: one more try,
-                # unless the first request already left (a one-shot link must not be loaded twice)
-                if "timed out" not in str(e) or self.evaluate("location.href") != "about:blank":
-                    raise
-                self.call("Page.navigate", url=url)
-        deadline = time.monotonic() + 15
-        while time.monotonic() < deadline:
-            if self.evaluate("document.readyState") == "complete":
-                break
-            time.sleep(0.02)
+        try:
+            self.session = cdp("Target.attachToTarget", targetId=self.target, flatten=True)["sessionId"]
+            self.call("Emulation.setDeviceMetricsOverride", width=1120, height=780, deviceScaleFactor=1, mobile=False)
+            # Keep rAF/menus rendering in an owned background tab, without activating the user's Chrome tab.
+            self.call("Emulation.setFocusEmulationEnabled", enabled=True)
+            if url:
+                try:
+                    self.call("Page.navigate", url=url)
+                except Exception as e:  # noqa: BLE001 - a busy daemon times out once in a while: one more try,
+                    # unless the first request already left (a one-shot link must not be loaded twice)
+                    if "timed out" not in str(e) or self.evaluate("location.href") != "about:blank":
+                        raise
+                    self.call("Page.navigate", url=url)
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                if self.evaluate("document.readyState") == "complete":
+                    break
+                time.sleep(0.02)
+        except BaseException:  # the deadline alarm too: never leave a tab we opened, unnamed, in the background
+            if not target:
+                try:
+                    cdp("Target.closeTarget", targetId=self.target)
+                except Exception:  # noqa: BLE001 - the original error matters more
+                    pass
+            raise
 
     def call(self, method, **params):
         return cdp(method, session_id=self.session, **params)
