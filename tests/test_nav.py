@@ -431,6 +431,33 @@ def test_two_scrolls_that_moved_nothing_stop():
     assert not nav.no_scroll_moved([still, {"kind": "click"}, still][-2:] + [{"kind": "click"}])
 
 
+class LoadingPage:
+    """A page that shows a spinner for `busy` reads, then changes once more after `changes` fresh checks."""
+    def __init__(self, busy=0, changes=0, stale=False, age=2000):
+        self.busy, self.changes, self.stale, self.age = busy, changes, stale, age
+
+    def evaluate(self, expression):
+        if expression == "performance.now()":
+            return self.age
+        self.busy -= 1
+        return self.busy >= 0
+
+    def fresh(self, page):
+        if self.stale:
+            raise nav.StalePage("navigated")
+        self.changes -= 1
+        return self.changes < 0
+
+
+def test_blocked_waits_while_the_page_is_still_loading():
+    assert nav.loading(LoadingPage(busy=1), {}, quiet=0.3)  # a spinner on screen
+    assert nav.loading(LoadingPage(changes=2), {}, quiet=0.6)  # content still arriving
+    assert nav.loading(LoadingPage(stale=True), {}, quiet=0.3)  # it navigated meanwhile
+    assert not nav.loading(LoadingPage(), {}, quiet=0.3)  # quiet and still: really blocked
+    # Past its first seconds, a spinner that never stops or a live feed is part of the page.
+    assert not nav.loading(LoadingPage(busy=99, changes=99, age=20000), {}, quiet=0.3)
+
+
 def test_scrolling_down_and_up_again_is_a_loop():
     down, up = {"kind": "scroll", "action": "Scroll down the right panel"}, {"kind": "scroll", "action": "Scroll up"}
     assert nav.seesaw([down, up, down, {"kind": "wait"}, up, down, up])

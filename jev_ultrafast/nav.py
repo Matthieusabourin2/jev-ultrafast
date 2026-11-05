@@ -209,6 +209,36 @@ def no_scroll_moved(history):
                                   h.get("page_changed") is False for h in last)
 
 
+# A loading indicator on screen: a busy region, a progress bar without a value (a step counter has one), a spinner,
+# a loader or a skeleton.
+BUSY = """(() => [...document.querySelectorAll('[aria-busy="true"],progress:not([value]),' +
+  '[role="progressbar"]:not([aria-valuenow]),[class*="spinner" i],[class*="loader" i],' +
+  '[class*="skeleton" i]')].some(e => {
+  const r = e.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth &&
+    e.checkVisibility({checkOpacity: true, checkVisibilityCSS: true});
+}))()"""
+
+
+def loading(browser, page, quiet=1.2, young=15):
+    """The page is still loading: in the first `young` seconds of the document, a loading indicator on screen, or
+    content that changes within `quiet` seconds. Web apps render in stages a second apart (Slido: "Authorizing...", a
+    toolbar, then the content); Jev judges each stage BLOCKED. Past that age a spinner that never stops, a ticker or a
+    chat feed is part of the page, not a load."""
+    until = time.monotonic() + quiet
+    try:
+        if browser.evaluate("performance.now()") > young * 1000:
+            return False
+        while True:
+            if browser.evaluate(BUSY) or not browser.fresh(page):
+                return True
+            if time.monotonic() >= until:
+                return False
+            time.sleep(0.15)
+    except Exception:  # noqa: BLE001 - it navigated meanwhile (a redirect after "Authorizing..."): look again
+        return True
+
+
 def seesaw(history):
     """Scrolling down and up again and again (what Jev wants does not fit on one screen): a loop. Its text, panels
     included, is in the result."""
@@ -809,6 +839,7 @@ def run(args):
     last_fill = None
     cycle, auto_scrolls, stale, unsure_waits, just_typed, replays, pressed = [], 0, 0, 0, None, {}, []
     unmoved = set()  # (url, scroll id) whose wheel moved nothing, until a scroll moves again
+    load_waits = 0
     confirm = args.confirm
     try:
         while state["status"] not in {"done", "blocked"}:
@@ -894,7 +925,12 @@ def run(args):
                 # With several panels, the next one once a wheel over the current one moved nothing.
                 further = next((a["id"] for a in state["page"]["actions"] if a["id"].startswith("scroll_down") and
                                 (state["page"]["url"], a["id"]) not in unmoved), None)
-                if decision["choice"] == "BLOCKED" and auto_scrolls < 8 and further:
+                # A page still loading is not blocked: wait for it, 12 times at most.
+                if decision["choice"] == "BLOCKED" and load_waits < 12 and loading(browser, state["page"]):
+                    load_waits += 1
+                    decision["choice"] = "wait"
+                    decision["probabilities"] = {**decision.get("probabilities", {}), "wait": 0.0}
+                elif decision["choice"] == "BLOCKED" and auto_scrolls < 8 and further:
                     auto_scrolls += 1
                     decision["choice"] = further
                     decision["probabilities"] = {**decision.get("probabilities", {}), further: 0.0}
