@@ -21,12 +21,14 @@ server = FastMCP("jevnav", instructions=(
 
 @server.tool()
 async def jevnav(goal: str, url: str | None = None, values: dict[str, str] | None = None, target: str | None = None,
-                 confirm: str | None = None) -> str:
+                 confirm: str | None = None, keep: bool = False) -> str:
     """Drive the user's Comet browser to a goal; returns one JSON result.
 
     goal: the whole task in plain words. url: start page (omit when resuming with target).
     values: non-secret field values you supply, e.g. {"from": "Zurich"}; Jev decides which field gets which.
     target: tab id from a previous result, to resume. confirm: allow one irreversible click whose label contains it.
+    keep: leave the tab open at the end, when the user wants the page in front of them or a next goal continues on it.
+    The tab closes by itself on done and blocked (target is then null); jevnav_reopen brings it back.
     Statuses: done; need_value (add the value for `field`, resume with target); confirm (ask the user, then resume
     with confirm=<label>); login_timeout (tell the user to fill with 1Password and click the sign-in button, then
     resume); allow_needed (tell the user to open Comet and click Allow, then call again); in_progress (resume with
@@ -39,6 +41,18 @@ async def jevnav(goal: str, url: str | None = None, values: dict[str, str] | Non
             cmd += [flag, value]
     if values:
         cmd += ["--values", json.dumps(values)]
+    if keep:
+        cmd += ["--keep"]
+    return await _run(cmd)
+
+
+@server.tool()
+async def jevnav_reopen() -> str:
+    """Open the last tab jevnav closed again, in front; call it again to go one tab further back."""
+    return await _run([sys.executable, "-m", "jev_ultrafast.nav", "--reopen", "--deadline", "35"])
+
+
+async def _run(cmd: list[str]) -> str:
     # A pending "Allow" must answer allow_needed well inside the 35 s deadline. The watchdog answers at most 45 s
     # after the imports (grace 5, then 5 for a click in progress): under the 55 s kill even with a 7 s cold start.
     proc = await asyncio.create_subprocess_exec(*cmd, cwd=ROOT, stdout=asyncio.subprocess.PIPE,

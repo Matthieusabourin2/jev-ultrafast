@@ -3,12 +3,15 @@
 Run: PYTHONPATH=. uv run --env-file .env python bench/web.py [task ...]
 """
 
+import os
 import json
 from pathlib import Path
 import re
 import subprocess
 import sys
 import time
+
+os.environ["JEVNAV_KEEP"] = "1"  # the check reads the final page in the tab
 
 def tfs_dates(url):
     """The dates Google Flights encodes in its tfs query parameter."""

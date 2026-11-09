@@ -5,6 +5,7 @@ PYTHONPATH=. uv run --env-file .env python examples/hard.py [case ...]
 Original jev-ultrafast on the same cases: add --arm original --source <checkout of the original>.
 """
 
+import os
 import functools
 import http.server
 import json
@@ -15,6 +16,8 @@ from pathlib import Path
 
 from browser_harness.helpers import cdp
 from jev_ultrafast.browser import Browser
+
+os.environ["JEVNAV_KEEP"] = "1"  # the check reads the final page in the tab
 
 ROOT = Path(__file__).with_name("hard")
 CASES = {

@@ -549,3 +549,35 @@ def test_a_tab_opened_for_a_run_is_closed_when_opening_fails(monkeypatch):
     with pytest.raises(nav.Deadline):
         browser.Browser("https://example.com", target="T0")  # a resumed tab belongs to the caller: kept
     assert "Target.closeTarget" not in calls
+
+
+def test_closed_tabs_are_remembered_for_reopen(tmp_path, monkeypatch):
+    monkeypatch.setattr(nav, "CLOSED_TABS", tmp_path / "closed.json")
+
+    class Tab:
+        def close(self):
+            pass
+
+    for i in range(25):
+        assert nav.close_tab(Tab(), f"https://example.com/{i}", "t")
+    assert nav.close_tab(Tab(), "about:blank", "")  # closed, but nothing to come back to
+    tabs = nav.closed_tabs()
+    assert len(tabs) == 20 and tabs[-1]["url"] == "https://example.com/24"
+    assert (tmp_path / "closed.json").stat().st_mode & 0o777 == 0o600
+
+
+def test_a_tab_the_browser_refuses_to_close_does_not_break_the_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(nav, "CLOSED_TABS", tmp_path / "closed.json")
+
+    class Tab:
+        def close(self):
+            raise RuntimeError("connection lost")
+
+    assert not nav.close_tab(Tab(), "https://example.com/", "t")
+    assert nav.closed_tabs() == []
+
+
+def test_reopen_with_nothing_closed_says_so(tmp_path, monkeypatch):
+    monkeypatch.setattr(nav, "CLOSED_TABS", tmp_path / "closed.json")
+    with pytest.raises(nav.Stop):
+        nav.reopen()

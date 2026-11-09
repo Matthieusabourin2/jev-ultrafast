@@ -66,7 +66,7 @@ chmod +x ~/.local/bin/jevnav
 Vérifiez que `~/.local/bin` est dans votre `PATH`, puis lancez un premier essai :
 
 ```bash
-jevnav --url https://en.wikipedia.org/wiki/Main_Page --goal "Search Wikipedia for Alan Turing and open his article" --values '{"query":"Alan Turing"}' --close
+jevnav --url https://en.wikipedia.org/wiki/Main_Page --goal "Search Wikipedia for Alan Turing and open his article" --values '{"query":"Alan Turing"}' --keep
 ```
 
 La commande rend une seule ligne JSON. Sur ce test, attendez `"status": "done"` en quatre à six secondes, avec l'adresse de l'article d'Alan Turing dans le champ `url`.
@@ -85,7 +85,7 @@ La commande rend une seule ligne JSON. Sur ce test, attendez `"status": "done"` 
 | `blocked` | Jev ne trouve plus d'action utile ; `reason` vaut `loop` s'il tournait en rond, `unreachable` si la cible restait couverte | reformuler l'objectif ou changer d'approche |
 | `error` | une erreur technique | lire `error`, relancer avec `--target` |
 
-L'onglet reste ouvert après chaque appel. `--target` reprend le même onglet avec l'historique des actions, sans `--url`. `--close` ferme l'onglet quand le statut est `done` ou `blocked`.
+L'onglet ouvert par jevnav se ferme seul quand le statut est `done` ou `blocked`. Il reste ouvert sur les autres statuts : `--target` reprend le même onglet avec l'historique des actions, sans `--url`. `--keep` le garde ouvert quoi qu'il arrive. `jevnav --reopen` rouvre le dernier onglet fermé (adresse seulement : les champs remplis sont perdus) ; relancé, il remonte d'un onglet.
 
 ## 5. Se connecter avec 1Password
 
@@ -150,7 +150,7 @@ uv run --env-file .env python bench/run.py --runs 3          # banc de performan
 |---|---|---|
 | La commande ne rend rien pendant une minute | le navigateur attend le clic **Allow** | cliquer **Allow** dans la fenêtre du navigateur |
 | `Model connection failed` | l'API TypeSafe est injoignable | vérifier le réseau et la clé, relancer |
-| `blocked` immédiat sur une application web | la page s'affiche lentement | relancer avec `--target` ; jevnav attend déjà jusqu'à 10 s une page vide |
+| `blocked` immédiat sur une application web | la page s'affiche lentement | relancer avec `--url` ; jevnav attend déjà une page vide et une page qui charge |
 | `login_timeout` sans notification | le formulaire est dans une iframe d'un autre domaine | se connecter à la main, puis relancer avec `--target` |
 | `confirm` sur un bouton anodin | son libellé figure dans la liste des actions irréversibles, ou il n'a pas de libellé lisible | relancer avec `--confirm "<libellé>"` |
 | `ModuleNotFoundError: jev_ultrafast` | macOS a caché le fichier `.pth` de `.venv` (vu dans `~/Documents`) et Python 3.14 l'ignore | préfixer la commande par `PYTHONPATH=.`, ou cloner hors de `~/Documents` |

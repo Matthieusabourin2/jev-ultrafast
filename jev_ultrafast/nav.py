@@ -20,7 +20,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .agent import Agent
-from .browser import AllowNeeded, StalePage
+from .browser import AllowNeeded, Browser, StalePage
 from .model import post_json, validate_choice
 
 SECRET = re.compile(
@@ -366,6 +366,7 @@ READ_ALL = r"""(() => {
 })()"""
 STATE_DIR = Path.home() / ".cache" / "jevnav"
 JOURNAL_DIR = Path.home() / ".claude" / "jev-journal" / "nav"
+CLOSED_TABS = STATE_DIR / "closed.json"  # for --reopen, newest last
 
 # Credential test on a live element: type, autocomplete, inputmode and length, not just its label.
 # Shared by the field check and the page scan. A secret field (password, one-time code, card, IBAN) is always a
@@ -809,10 +810,11 @@ def run(args):
     refused = [k for k in values if secret_key(k)]
     if refused:
         raise Stop("refused", reason="values look like secrets; 1Password fills those", keys=refused)
-    saved = {}
+    saved, owned = {}, not args.target  # owned: this tab was opened by jevnav, so jevnav may close it
     if args.target:
         path = STATE_DIR / f"{args.target}.json"
         saved = json.loads(path.read_text()) if path.exists() else {}
+        owned = bool(saved.get("owned"))
         if saved.get("goal") != args.goal or saved.get("status") == "done":
             saved = {}
     typed = saved.get("typed", [])
@@ -1182,16 +1184,77 @@ def run(args):
     }
     if everything and everything["unread"]:
         result["unread_frames"] = everything["unread"]  # embedded frames from another site: their text is missing
-    if status in {"done", "blocked"} and args.close:
-        agent.close()
+    # A finished tab costs memory in the user's browser. Only a tab jevnav opened, and only at the end of the task:
+    # need_value, confirm, login_timeout and in_progress are resumed, and error keeps its tab for the same reason.
+    closing = status in {"done", "blocked"} and not args.keep and owned
+    if closing and any(h.get("kind") in {"fill", "select"} for h in history):
+        time.sleep(1.5)  # an autosave fires a moment after the last change: let it leave before closing
+    if closing and close_tab(agent, result["url"], result["title"]):
+        (STATE_DIR / f"{result['target']}.json").unlink(missing_ok=True)
         result["target"] = None
     else:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         path = STATE_DIR / f"{browser.target}.json"  # written whole or not at all: the watchdog may exit anytime
         path.with_suffix(".tmp").write_text(
-            json.dumps({"goal": args.goal, "status": status, "history": history, "typed": typed}))
+            json.dumps({"goal": args.goal, "status": status, "history": history, "typed": typed, "owned": owned}))
         os.replace(path.with_suffix(".tmp"), path)
     return result
+
+
+def closed_tabs():
+    try:
+        return json.loads(CLOSED_TABS.read_text())
+    except (OSError, ValueError):
+        return []
+
+
+def save_closed_tabs(tabs):
+    """Private to the user: an address can carry a token. The 20 latest are enough to undo a close."""
+    CLOSED_TABS.parent.mkdir(parents=True, exist_ok=True)
+    temporary = CLOSED_TABS.with_suffix(f".{os.getpid()}.tmp")  # several jevnav can run at once
+    with os.fdopen(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+        f.write(json.dumps(tabs[-20:]))
+    os.replace(temporary, CLOSED_TABS)
+
+
+def close_tab(agent, url, title):
+    """Close a finished tab and note its address for --reopen. False when the browser refused: the tab stays, and
+    the result of the run still reaches the caller."""
+    try:
+        agent.close()
+    except Exception:  # noqa: BLE001 - the task is over: a tab left open must not turn it into an error
+        return False
+    if url.startswith(("http://", "https://")):
+        try:
+            save_closed_tabs([*closed_tabs(), {"url": url, "title": title}])
+        except OSError:
+            pass  # the undo list must never break a run
+    return True
+
+
+def reopen():
+    """Open the last tab jevnav closed again, in front. Called again, it goes one tab further back."""
+    tabs = closed_tabs()
+    if not tabs:
+        raise Stop("error", error="no closed tab to reopen")
+    tab = tabs[-1]
+    browser = Browser(tab["url"])
+    browser.call("Emulation.clearDeviceMetricsOverride")  # the page is for the user now: their window size
+    from browser_harness.helpers import cdp
+
+    cdp("Target.activateTarget", targetId=browser.target)
+    app = os.environ.get("JEVNAV_APP", "Comet")
+    subprocess.run(["osascript", "-e", f'tell application "{app}" to activate'], check=False)
+    try:
+        now = closed_tabs()  # read again: another run may have closed a tab while this page loaded
+        if tab in now:
+            now.reverse()
+            now.remove(tab)
+            now.reverse()
+        save_closed_tabs(now)
+    except OSError:
+        pass  # the tab is back: that is what was asked
+    return {"status": "done", "url": tab["url"], "title": tab["title"], "target": browser.target}
 
 
 def log(args, result):
@@ -1243,12 +1306,14 @@ def watchdog(args, seconds):
 
 def main():
     p = argparse.ArgumentParser(prog="jevnav", description=__doc__)
-    p.add_argument("--goal", required=True)
+    p.add_argument("--goal")
     p.add_argument("--url", help="start URL; omit with --target to continue where the tab is")
     p.add_argument("--values", help='JSON object of non-secret field values, e.g. {"from":"Zurich"}')
     p.add_argument("--target", help="resume this tab (target id from a previous result)")
     p.add_argument("--confirm", help="allow one irreversible click whose label contains this text")
-    p.add_argument("--close", action="store_true", help="close the tab when done or blocked")
+    p.add_argument("--keep", action="store_true", default=bool(os.environ.get("JEVNAV_KEEP")),
+                   help="leave the tab open at the end (it closes itself on done or blocked)")
+    p.add_argument("--reopen", action="store_true", help="open the last tab jevnav closed again, in front")
     p.add_argument("--budget", type=float, default=90, help="seconds of navigation before returning in_progress")
     p.add_argument("--login-wait", type=float, default=120)
     p.add_argument("--deadline", type=float,
@@ -1256,13 +1321,15 @@ def main():
                         "wait + 30 s). A watchdog answers error JEVNAV_GRACE seconds later (15) if the run still hangs")
     p.add_argument("--text-chars", type=int, default=3000)
     args = p.parse_args()
-    if not args.url and not args.target:
+    if not args.reopen and not args.goal:
+        p.error("--goal is required")
+    if not args.reopen and not args.url and not args.target:
         p.error("--url or --target is required")
     if args.deadline is None:
         args.deadline = args.budget + args.login_wait + 30
     watchdog(args, args.deadline + float(os.environ.get("JEVNAV_GRACE", 15)))
     try:
-        result = run(args)
+        result = reopen() if args.reopen else run(args)
     except Stop as stop:
         result = {"status": stop.status, **stop.info}
     except Deadline:  # reached while opening the tab: no target to resume

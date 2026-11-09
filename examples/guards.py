@@ -3,6 +3,7 @@
 Each case must end without any text in a credential field. Run: PYTHONPATH=. uv run --env-file .env python examples/guards.py
 """
 
+import os
 import functools
 import http.server
 import json
@@ -13,6 +14,8 @@ from pathlib import Path
 
 from browser_harness.helpers import cdp
 from jev_ultrafast.browser import Browser
+
+os.environ["JEVNAV_KEEP"] = "1"  # the check reads the final page in the tab
 
 ROOT = Path(__file__).with_name("guards")
 CASES = [

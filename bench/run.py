@@ -18,6 +18,8 @@ from urllib.parse import parse_qs, urlparse
 from browser_harness.helpers import cdp
 from jev_ultrafast.browser import Browser
 
+os.environ["JEVNAV_KEEP"] = "1"  # the check reads the final page in the tab
+
 
 def flights_ok(page):
     """Independent route/date checks on the final Google Flights page (adapted from examples/flights.py)."""

@@ -25,7 +25,8 @@ appelant ◀── une ligne JSON : status, actions, url, title, text, target
 
 - **Aucun LLM de texte.** Les valeurs viennent de `--values`. Un champ sans valeur correspondante renvoie `need_value`.
 - **Les identifiants restent dans 1Password.** jevnav ne tape jamais un identifiant, une adresse mail, un mot de passe ou un code. Avant chaque frappe, il contrôle l'élément réel (type, autocomplétion, mode de saisie, libellés, focus), et il s'arrête sur les formulaires de connexion jusqu'à ce que vous les remplissiez et cliquiez le bouton de connexion.
-- **Reprise possible.** L'onglet reste ouvert ; `--target` repart de là où l'appel précédent s'est arrêté.
+- **Reprise possible.** Tant que la tâche n'est pas finie, l'onglet reste ouvert ; `--target` repart de là où l'appel précédent s'est arrêté.
+- **Les onglets finis se ferment.** Sur `done` ou `blocked`, jevnav ferme l'onglet qu'il a ouvert, pour rendre sa mémoire au navigateur. `--keep` le garde ouvert, `jevnav --reopen` rouvre le dernier fermé.
 - **Deux branchements.** Une commande Bash pour Claude Code, et un serveur MCP (`jev_ultrafast/mcp_server.py`) pour le chat de Claude Desktop.
 
 Duel du 10 octobre 2026 contre jev-ultrafast d'origine, même Mac, même Comet, contrôle indépendant de la page finale. Google Flights : 6,84 s de médiane contre 7,42 s, 13 appels Jev contre 17 à 23, cinq paires gagnées sur cinq. Quinze sites réels, deux passages : 24 réussites sur 30 contre 13. Sur la plus simple des tâches, Claude seul met 27 à 42 s. Détails et limites : [benchmark](docs/fr/benchmark.md).
@@ -44,7 +45,7 @@ Dans le navigateur, ouvrez `chrome://inspect/#remote-debugging`, cochez **Allow 
 
 ```bash
 uv run --env-file .env jevnav --url https://en.wikipedia.org/wiki/Main_Page \
-  --goal "Search Wikipedia for Alan Turing and open his article" --values '{"query":"Alan Turing"}' --close
+  --goal "Search Wikipedia for Alan Turing and open his article" --values '{"query":"Alan Turing"}' --keep
 ```
 
 Chaque lancement rend une ligne JSON et écrit sa ligne au journal dans son délai : `--deadline` (par défaut budget + attente de connexion + 30 s) rend `in_progress`, et un chien de garde rend `error` 15 s plus tard si le run reste bloqué. Gardez le dépôt hors d'iCloud Drive (ou son `.venv` en lien vers un dossier local) : un disque presque plein fait évincer les fichiers, et chaque import les retélécharge pendant des minutes.

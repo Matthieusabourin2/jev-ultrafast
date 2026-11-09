@@ -7,6 +7,8 @@ if os.environ.get('PROFILE'):
     import profile as P; from jev_ultrafast import browser as bmod; P.install(bmod)
 from jev_ultrafast.browser import Browser
 from common import URL, GOAL, VALUES, verify
+
+os.environ["JEVNAV_KEEP"] = "1"  # the check reads the final page in the tab
 n = {"jev": 0, "jev_s": 0.0}
 orig = mmod.CLIENT.post
 def counted(*a, **k):
